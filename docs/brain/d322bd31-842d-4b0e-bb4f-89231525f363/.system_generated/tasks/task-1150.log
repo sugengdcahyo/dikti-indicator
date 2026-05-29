@@ -1,0 +1,6 @@
+Successfully scheduled one-shot timer.
+Expected to fire at: 2026-05-26T10:46:14+07:00
+Prompt: Check if node component updater subagent has completed updating BpmnTaskNode, BpmnSubprocessNode, BpmnEventNode, BpmnGatewayNode, BpmnDataObjectNode, BpmnDataStoreNode, BpmnAnnotationNode, BpmnGroupNode to pass nodeId to BpmnResizableNode
+
+[2026-05-26T10:45:24+07:00] Still waiting. Remaining time: 50s
+[2026-05-26T10:45:26+07:00] Timer cancelled: agent received a message during wait.

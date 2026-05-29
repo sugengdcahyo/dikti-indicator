@@ -1,0 +1,39 @@
+
+> frontpage@0.1.0 build
+> NODE_OPTIONS=--no-deprecation next build
+
+▲ Next.js 16.2.6 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 5.3s
+  Running TypeScript ...
+  Finished TypeScript in 4.9s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/17) ...
+  Generating static pages using 7 workers (4/17) 
+  Generating static pages using 7 workers (8/17) 
+  Generating static pages using 7 workers (12/17) 
+✓ Generating static pages using 7 workers (17/17) in 528ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /design-system
+├ ○ /icon.png
+├ ○ /industries
+├ ○ /operating-model
+├ ○ /product-suite
+├ ○ /robots.txt
+├ ○ /sentinel
+├ ○ /sentinel/features
+├ ○ /sentinel/threat-feed
+├ ○ /sentinel/tools
+├ ○ /sentinel/tools/cve-intelligence
+├ ○ /sentinel/tools/domain-exposure
+├ ○ /sentinel/tools/ioc-lookup
+└ ○ /sitemap.xml
+
+
+○  (Static)  prerendered as static content
+

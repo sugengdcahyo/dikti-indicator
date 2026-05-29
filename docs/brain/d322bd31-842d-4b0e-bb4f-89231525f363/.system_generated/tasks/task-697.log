@@ -1,0 +1,66 @@
+
+> bpmn-management-system@0.1.0 build
+> next build
+
+▲ Next.js 16.2.6 (Turbopack)
+- Environments: .env
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 12.9s
+  Running TypeScript ...
+  Finished TypeScript in 7.7s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/26) ...
+  Generating static pages using 7 workers (6/26) 
+  Generating static pages using 7 workers (12/26) 
+  Generating static pages using 7 workers (19/26) 
+✓ Generating static pages using 7 workers (26/26) in 475ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/artifacts
+├ ƒ /api/artifacts/[id]
+├ ƒ /api/artifacts/[id]/versions
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/dashboard/enterprise-map
+├ ƒ /api/dashboard/organization/[id]/summary
+├ ƒ /api/ea/configuration/domains
+├ ƒ /api/ea/configuration/domains/[id]
+├ ƒ /api/ea/configuration/domains/[id]/properties
+├ ƒ /api/ea/configuration/domains/[id]/symbols
+├ ƒ /api/ea/configuration/properties/[id]
+├ ƒ /api/ea/configuration/symbols/[id]
+├ ƒ /api/ea/configuration/templates
+├ ƒ /api/ea/configuration/templates/[id]/apply
+├ ƒ /api/organizations
+├ ƒ /api/organizations/[id]
+├ ƒ /api/organizations/[id]/members
+├ ƒ /api/organizations/[id]/members/[memberId]
+├ ƒ /api/organizations/tree
+├ ƒ /api/session/login
+├ ƒ /api/session/logout
+├ ƒ /api/session/register
+├ ƒ /api/workspaces/check-code
+├ ƒ /api/workspaces/mine
+├ ƒ /api/workspaces/onboarding
+├ ƒ /api/workspaces/select
+├ ○ /enterprise/map
+├ ○ /enterprise/organizations
+├ ƒ /enterprise/organizations/[id]/members
+├ ƒ /enterprise/overview
+├ ○ /enterprise/repository
+├ ƒ /enterprise/superadmin/ea-configuration/domain-architecture-setup
+├ ○ /login
+├ ○ /onboarding/workspace
+├ ○ /studio
+└ ƒ /workspaces
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

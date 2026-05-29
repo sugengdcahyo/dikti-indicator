@@ -1,0 +1,22 @@
+# Task List: Varguard Metadata Hub MVP
+
+- [x] Install dependencies (`lucide-react`, `clsx`, `tailwind-merge`, `@xyflow/react`)
+- [x] Implement Mock Database & Data Agent Simulator (`lib/mock-db.ts`, `lib/data-agent-sim.ts`)
+- [x] Create Navigation Sidebar & Global Layout Structure
+- [x] Implement Backend Sim API Routes
+  - [x] `/api/datasets`
+  - [x] `/api/lineage/events`
+  - [x] `/api/ea/artifact-link`
+  - [x] `/api/data-agent/scan`
+  - [x] `/api/data-agent/profile`
+- [x] Implement Interactive MVP Pages
+  - [x] Dashboard Page (`/dashboard`)
+  - [x] Dataset Registry List & Details (`/datasets`, `/datasets/[id]`)
+  - [x] Indicator Registry (`/indicators`, `/indicators/[id]`)
+  - [x] Variable Registry (`/variables`)
+  - [x] Classification Tree Hierarchy (`/classifications`)
+  - [x] Lineage Graph (`/lineage`)
+  - [x] Quality Dashboard (`/quality`)
+  - [x] MDM Fuzzy Merge Suggestions (`/mdm`)
+  - [x] Simple Governance Approval workflow (`/governance`)
+- [x] Build & Verify Compilation correctness

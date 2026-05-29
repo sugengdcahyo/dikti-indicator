@@ -1,0 +1,6 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary":  "Implementation plan for the Varguard Metadata Hub MVP, detailing layout, component architecture, mock database state, page routes, simulated integrations with the FastAPI data agent and Varguard Studio/EA, and dependency installations.",
+  "updatedAt":  "2026-05-26T21:28:28.817272Z",
+  "requestFeedback":  true
+}

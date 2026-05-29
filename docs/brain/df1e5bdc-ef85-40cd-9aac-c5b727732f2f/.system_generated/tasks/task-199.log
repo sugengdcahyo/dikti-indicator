@@ -1,0 +1,30 @@
+
+> metadata-hub@0.1.0 build
+> next build
+
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /Users/pabrik/working/mekarsa/products/varguard/package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * /Users/pabrik/working/mekarsa/products/varguard/metadata-hub/package-lock.json
+
+▲ Next.js 16.2.6 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 5.1s
+  Running TypeScript ...
+Failed to type check.
+
+./app/dashboard/page.tsx:191:27
+Type error: Type '"secondary" | "success" | "info"' is not assignable to type 'DsBadgeVariant | undefined'.
+  Type '"secondary"' is not assignable to type 'DsBadgeVariant | undefined'.
+
+  189 |                       <DsTableCell>
+  190 |                         <DsBadge
+> 191 |                           variant={
+      |                           ^
+  192 |                             d.status === "published" || d.status === "approved"
+  193 |                               ? "success"
+  194 |                               : d.status === "submitted"
+Next.js build worker exited with code: 1 and signal: null

@@ -1,0 +1,21 @@
+# Task List: Standardisasi & Arsip Desain Varguard
+
+- [x] Modifikasi `WorkspaceLayoutProvider` untuk proteksi rute & logout (`/components/workspace-layout-provider.tsx`)
+- [x] Buat Halaman Login (`/app/login/page.tsx`)
+- [x] Buat Halaman Registrasi (`/app/register/page.tsx`)
+- [x] Buat Halaman Lupa Password (`/app/forgot-password/page.tsx`)
+- [x] Standardisasi Modal Konfirmasi (`/components/confirmation-modal.tsx`)
+- [x] Integrasikan Modal ke Governance Workflow (`/app/governance/page.tsx`)
+- [x] Standardisasi `DsLabel` di Design System (`/shared/design-system/components/label.tsx`)
+- [x] Standardisasi Label pada Login, Register, Forgot Password, Datasets, dan Indicators
+- [x] Tambahkan Animasi CSS Typewriter & Caret Blink ke `app/globals.css`
+- [x] Buat Arsip Dokumentasi Desain Terstandar (`/docs/design/typewriter-style.md`)
+- [x] Integrasikan React Hook `useAuth` Terstandar (`/lib/auth.ts`)
+- [x] Buat Panduan Cetak Biru Developer (`/BOILERPLATE.md`)
+- [x] Lakukan pemindaian halaman autentikasi untuk menghilangkan sebutan "Nasional" dan UPPERCASE berlebih
+- [x] Ubah seluruh narasi pada fitur autentikasi ke dalam Bahasa Inggris terstandar
+- [x] Buat tipografi adaptif/fluid agar nyaman dibaca di berbagai resolusi layar
+- [x] Standardisasi ukuran font pada Sidebar dan Header (Mengeliminasi text-[9px] ke text-[10px] terpadu)
+- [x] Standardisasi ukuran semua icon menu navigasi & kontrol menjadi seragam 16x16 (h-4 w-4)
+- [x] Evaluasi dan terjemahkan halaman /dashboard ke Bahasa Inggris, serta hapus penyebutan SPBE/Pemerintah secara spesifik
+- [x] Verifikasi dan Laporan Akhir

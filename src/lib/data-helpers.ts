@@ -1,0 +1,295 @@
+import * as XLSX from "xlsx";
+import { detectCanonicalKey } from "@/lib/normalization";
+import { toNumber, toString } from "@/lib/utils";
+import type { DashboardFilters, DataProfile, NormalizedRow, RawRow } from "@/types/data";
+
+export function generateMockIkuData(faculty: string, year: string): { rows: RawRow[]; columns: string[] } {
+  const columns = [
+    "Tahun",
+    "Fakultas",
+    "Program Studi",
+    "Jenjang",
+    "Total Dosen Tetap",
+    "IK-017 (Dosen Tridharma)",
+    "IK-018 (Dosen Praktisi Industri)",
+    "Dosen Membina Prestasi Mahasiswa Nasional/Internasional",
+    "Total Dosen Memenuhi IKU003",
+    "Persentase IKU003",
+    "Mitra Kampus/Industri",
+    "Evidence"
+  ];
+
+  let programs: { name: string; degree: string }[] = [];
+  if (faculty === "Teknik") {
+    programs = [
+      { name: "S1 Teknik Informatika", degree: "S1" },
+      { name: "S1 Teknik Elektro", degree: "S1" },
+      { name: "S1 Teknik Mesin", degree: "S1" },
+      { name: "S1 Teknik Sipil", degree: "S1" },
+      { name: "S1 Teknik Kimia", degree: "S1" },
+      { name: "S1 Teknik Industri", degree: "S1" },
+      { name: "S2 Teknik Informatika", degree: "S2" },
+      { name: "S2 Teknik Mesin", degree: "S2" }
+    ];
+  } else if (faculty === "MIPA") {
+    programs = [
+      { name: "S1 Matematika", degree: "S1" },
+      { name: "S1 Fisika", degree: "S1" },
+      { name: "S1 Kimia", degree: "S1" },
+      { name: "S1 Biologi", degree: "S1" },
+      { name: "S1 Statistika", degree: "S1" },
+      { name: "S2 Kimia", degree: "S2" }
+    ];
+  } else if (faculty === "Ekonomi") {
+    programs = [
+      { name: "S1 Manajemen", degree: "S1" },
+      { name: "S1 Akuntansi", degree: "S1" },
+      { name: "S1 Ekonomi Pembangunan", degree: "S1" },
+      { name: "S2 Manajemen", degree: "S2" },
+      { name: "S2 Akuntansi", degree: "S2" }
+    ];
+  } else {
+    programs = [
+      { name: "S1 Kedokteran", degree: "S1" },
+      { name: "S1 Farmasi", degree: "S1" },
+      { name: "S1 Psikologi", degree: "S1" }
+    ];
+  }
+
+  const partnersList = [
+    "Google Indonesia, Microsoft Research",
+    "PT Telkom Tbk, GoTo Group",
+    "PT Astra International, Siemens",
+    "Huawei Tech, Tokopedia",
+    "Pertamina, Chevron Pacific",
+    "Kementerian BUMN, Bank Mandiri"
+  ];
+
+  const rows: RawRow[] = programs.map((prog, idx) => {
+    // Fully deterministic values based on program index and faculty name
+    // to prevent server-client hydration mismatches during SSR.
+    const seed = idx + faculty.length;
+    const total = 30 + (seed % 15); // Deterministic total: 30 to 44
+    const iku017 = Math.floor(total * (0.50 + ((seed * 3) % 7) * 0.05)); // 50% to 80%
+    const iku018 = Math.floor(total * (0.10 + ((seed * 7) % 5) * 0.04)); // 10% to 26%
+    const coaching = Math.floor(total * (0.03 + ((seed * 2) % 4) * 0.02)); // 3% to 9%
+    const ikuTotal = Math.min(total, iku017 + iku018 + coaching);
+    const ikuPct = Math.round((ikuTotal / total) * 10000) / 100;
+
+    return {
+      "Tahun": year,
+      "Fakultas": faculty,
+      "Program Studi": prog.name,
+      "Jenjang": prog.degree,
+      "Total Dosen Tetap": total,
+      "IK-017 (Dosen Tridharma)": iku017,
+      "IK-018 (Dosen Praktisi Industri)": iku018,
+      "Dosen Membina Prestasi Mahasiswa Nasional/Internasional": coaching,
+      "Total Dosen Memenuhi IKU003": ikuTotal,
+      "Persentase IKU003": ikuPct,
+      "Mitra Kampus/Industri": partnersList[idx % partnersList.length],
+      "Evidence": `SK_Dekan_${faculty}_${prog.name.replace(/\s+/g, "_")}_${year}.pdf`
+    };
+  });
+
+  return { rows, columns };
+}
+
+export async function parseSpreadsheetFile(file: File): Promise<{ rows: RawRow[]; columns: string[] }> {
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json<RawRow>(firstSheet, { defval: "" });
+  const columns = rows.length ? Object.keys(rows[0]) : [];
+  return { rows, columns };
+}
+
+function toGoogleSheetExportUrl(url: string): string {
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!match) return url;
+  const sheetId = match[1];
+  const gidMatch = url.match(/[?&]gid=(\d+)/);
+  const gid = gidMatch?.[1] ?? "0";
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx&gid=${gid}`;
+}
+
+export async function parseSpreadsheetUrl(url: string): Promise<{ rows: RawRow[]; columns: string[] }> {
+  const trimmed = url.trim();
+  if (trimmed === "drive-folder-demo-teknik" || trimmed.endsWith("teknik")) {
+    return generateMockIkuData("Teknik", "2026");
+  }
+  if (trimmed === "drive-folder-demo-mipa" || trimmed.endsWith("mipa")) {
+    return generateMockIkuData("MIPA", "2026");
+  }
+  if (trimmed === "drive-folder-demo-ekonomi" || trimmed.endsWith("ekonomi")) {
+    return generateMockIkuData("Ekonomi", "2026");
+  }
+
+  const finalUrl = toGoogleSheetExportUrl(trimmed);
+  const response = await fetch(finalUrl);
+  if (!response.ok) {
+    throw new Error("Gagal mengambil data dari URL spreadsheet");
+  }
+  const buffer = await response.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json<RawRow>(firstSheet, { defval: "" });
+  const columns = rows.length ? Object.keys(rows[0]) : [];
+  return { rows, columns };
+}
+
+export function normalizeRows(rows: RawRow[]): NormalizedRow[] {
+  return rows.map((row) => {
+    const normalized: NormalizedRow = { __raw: row };
+    for (const [column, rawValue] of Object.entries(row)) {
+      const key = detectCanonicalKey(column);
+      if (!key) continue;
+      switch (key) {
+        case "year":
+        case "faculty":
+        case "study_program":
+        case "degree":
+        case "partners":
+        case "evidence":
+          normalized[key] = toString(rawValue);
+          break;
+        default:
+          normalized[key] = toNumber(rawValue);
+      }
+    }
+    return normalized;
+  });
+}
+
+export function detectNumericColumns(rows: RawRow[], columns: string[]): string[] {
+  return columns.filter((column) => {
+    const sample = rows.slice(0, 50).map((row) => row[column]).filter((v) => v !== "" && v != null);
+    if (!sample.length) return false;
+    const numericCount = sample.filter((v) => toNumber(v) !== undefined).length;
+    return numericCount / sample.length > 0.7;
+  });
+}
+
+export function generateProfile(rows: RawRow[], columns: string[]): DataProfile {
+  const numericColumns = detectNumericColumns(rows, columns);
+  const categoricalColumns = columns.filter((column) => !numericColumns.includes(column));
+  const missingByColumn = columns.map((column) => {
+    const missing = rows.filter((row) => {
+      const value = row[column];
+      return value == null || String(value).trim() === "";
+    }).length;
+    return { column, missing, percentage: rows.length ? (missing / rows.length) * 100 : 0 };
+  });
+
+  const seen = new Set<string>();
+  let duplicateRows = 0;
+  for (const row of rows) {
+    const signature = JSON.stringify(row);
+    if (seen.has(signature)) duplicateRows += 1;
+    seen.add(signature);
+  }
+
+  return {
+    totalRows: rows.length,
+    totalColumns: columns.length,
+    numericColumns,
+    categoricalColumns,
+    missingByColumn,
+    duplicateRows,
+  };
+}
+
+export function filterRows(rows: NormalizedRow[], filters: DashboardFilters): NormalizedRow[] {
+  return rows.filter((row) => {
+    if (filters.year && row.year !== filters.year) return false;
+    if (filters.faculty && row.faculty !== filters.faculty) return false;
+    if (filters.degree && row.degree !== filters.degree) return false;
+    if (filters.search) {
+      const target = `${row.study_program ?? ""} ${row.faculty ?? ""}`.toLowerCase();
+      if (!target.includes(filters.search.toLowerCase())) return false;
+    }
+    return true;
+  });
+}
+
+export function calculateKpis(rows: NormalizedRow[]) {
+  const sum = (values: number[]) => values.reduce((acc, val) => acc + val, 0);
+  const uniqueCount = (values: Array<string | undefined>) => new Set(values.filter(Boolean)).size;
+  const percentages = rows.map((r) => r.iku_percentage).filter((v): v is number => v !== undefined);
+
+  return {
+    totalStudyProgram: uniqueCount(rows.map((r) => r.study_program)),
+    totalFaculty: uniqueCount(rows.map((r) => r.faculty)),
+    totalLecturers: sum(rows.map((r) => r.total_lecturers ?? 0)),
+    totalIkuQualified: sum(rows.map((r) => r.iku_total ?? 0)),
+    avgIkuPercentage: percentages.length ? sum(percentages) / percentages.length : 0,
+    totalPartners: uniqueCount(rows.map((r) => r.partners)),
+  };
+}
+
+export function toProgramChart(rows: NormalizedRow[]) {
+  return rows
+    .filter((r) => r.study_program)
+    .map((r) => ({
+      study_program: r.study_program as string,
+      iku_percentage: r.iku_percentage ?? 0,
+      total_lecturers: r.total_lecturers ?? 0,
+      iku_017: r.iku_017 ?? 0,
+      iku_018: r.iku_018 ?? 0,
+      coaching_achievement: r.coaching_achievement ?? 0,
+      faculty: r.faculty ?? "Lainnya",
+    }));
+}
+
+export function getRanking(rows: NormalizedRow[], direction: "asc" | "desc") {
+  return [...rows]
+    .filter((r) => r.study_program && r.iku_percentage !== undefined)
+    .sort((a, b) => (direction === "desc" ? (b.iku_percentage ?? 0) - (a.iku_percentage ?? 0) : (a.iku_percentage ?? 0) - (b.iku_percentage ?? 0)))
+    .slice(0, 10);
+}
+
+export function getInsights(rows: NormalizedRow[], threshold = 80) {
+  const sorted = [...rows]
+    .filter((r) => r.study_program && r.iku_percentage !== undefined)
+    .sort((a, b) => (b.iku_percentage ?? 0) - (a.iku_percentage ?? 0));
+
+  const facultyMap = new Map<string, { total: number; count: number }>();
+  for (const row of rows) {
+    if (!row.faculty || row.iku_percentage === undefined) continue;
+    const prev = facultyMap.get(row.faculty) ?? { total: 0, count: 0 };
+    facultyMap.set(row.faculty, { total: prev.total + row.iku_percentage, count: prev.count + 1 });
+  }
+
+  const topFaculty = [...facultyMap.entries()]
+    .map(([faculty, v]) => ({ faculty, avg: v.total / v.count }))
+    .sort((a, b) => b.avg - a.avg)[0];
+
+  const avgAll = sorted.length
+    ? sorted.reduce((acc, row) => acc + (row.iku_percentage ?? 0), 0) / sorted.length
+    : 0;
+
+  const belowThreshold = sorted.filter((r) => (r.iku_percentage ?? 0) < threshold).map((r) => r.study_program as string);
+
+  return {
+    topProgram: sorted[0],
+    bottomProgram: sorted[sorted.length - 1],
+    topFaculty,
+    avgAll,
+    belowThreshold,
+    threshold,
+  };
+}
+
+export function exportRowsToCsv(rows: RawRow[], filename = "export.csv") {
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  const csv = XLSX.utils.sheet_to_csv(worksheet);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

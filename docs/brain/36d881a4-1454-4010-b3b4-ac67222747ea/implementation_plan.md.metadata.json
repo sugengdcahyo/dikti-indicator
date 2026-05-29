@@ -1,0 +1,6 @@
+{
+  "artifactType": "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary": "Detailed step-by-step implementation plan to refactor existing design system components to strictly use semantic CSS variables, add 5 new interactive/feedback primitives (DsSwitch, DsTooltip, DsDialog, DsSkeleton, DsTabs), register them in the entry index, align adoption-checklist.md documentation, and showcase them inside the enterprise-design-system view page.",
+  "updatedAt": "2026-05-22T20:49:30.796419Z",
+  "requestFeedback": true
+}

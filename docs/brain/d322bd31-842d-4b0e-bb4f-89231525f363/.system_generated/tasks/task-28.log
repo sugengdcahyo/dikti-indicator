@@ -1,0 +1,53 @@
+
+> bpmn-management-system@0.1.0 lint
+> eslint
+
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/app/api/organizations/tree/route.ts
+  12:31  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  12:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/app/components/BpmnEditor.tsx
+   90:5   warning  'setNodes' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   91:5   warning  'setEdges' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  163:15  error    Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+  171:15  error    Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/app/components/GridAppDashboardShell.tsx
+  10:7  warning  'FOOTER_HEIGHT' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/app/enterprise/map/page.tsx
+   8:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  45:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/app/enterprise/organizations/OrganizationTreeClient.tsx
+  38:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/app/enterprise/organizations/[id]/members/page.tsx
+  14:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/app/enterprise/repository/page.tsx
+  17:38  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/app/studio/page.tsx
+  49:9  warning  'handleExportSvg' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/app/workspaces/WorkspaceGroupsClient.tsx
+  39:6  warning  React Hook useEffect has a missing dependency: 'router'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/lib/canvas/bpmn-interoperability.ts
+  14:89  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  25:37  warning  '_xml' is defined but never used          @typescript-eslint/no-unused-vars
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/lib/canvas/elk-layout.ts
+  30:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/lib/enterprise/store.ts
+  72:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/pabrik/working/mekarsa/products/varguard/bpmn/bpmn-management-system/src/components/bpmn/nodes/BpmnDataNode.tsx
+  5:1   warning  Unexpected default export of anonymous function  import/no-anonymous-default-export
+  5:16  error    Component definition is missing display name     react/display-name
+
+✖ 20 problems (13 errors, 7 warnings)
+

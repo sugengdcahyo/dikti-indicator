@@ -1,0 +1,6 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary":  "Implementation plan to add a highly optimized, multi-stage production Dockerfile, a comprehensive .dockerignore file, update .gitignore with modern entries, and configure Next.js standalone output.",
+  "updatedAt":  "2026-05-26T23:02:39.132018Z",
+  "requestFeedback":  true
+}

@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  sassOptions: {
+    includePaths: ["./node_modules"],
+    silenceDeprecations: ["legacy-js-api"],
+  },
 };
 
 export default nextConfig;

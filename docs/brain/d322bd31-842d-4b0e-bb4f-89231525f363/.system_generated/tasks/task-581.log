@@ -1,0 +1,5 @@
+Successfully scheduled one-shot timer.
+Expected to fire at: 2026-05-26T09:50:03+07:00
+Prompt: Wait for typecheck after sidebar collapse change
+
+[2026-05-26T09:49:56+07:00] Timer cancelled: agent received a message during wait.

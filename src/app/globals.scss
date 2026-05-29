@@ -1,0 +1,1294 @@
+// ============================================================
+// Carbon Design System – Global Styles Entry Point
+// IKU Kampus Analytics
+// ============================================================
+
+// 1. Configure Carbon before importing
+@use '@carbon/react/scss/config' with (
+  $css--default-type: true,
+  $css--reset: true,
+  $prefix: 'cds'
+);
+
+// 2. Import Carbon themes
+@use '@carbon/react/scss/themes';
+
+// 3. Set g10 (light) as default theme
+@use '@carbon/react/scss/theme' as * with (
+  $theme: themes.$g10
+);
+
+// 4. Import all Carbon component styles
+@use '@carbon/react/scss/components' as *;
+
+// 5. Import Carbon type
+@use '@carbon/react/scss/type' as *;
+
+// 6. Import Carbon spacing & utilities
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/utilities/convert' as *;
+
+// ============================================================
+// Dark mode: map html.dark → Carbon g100 theme
+// ============================================================
+html.dark {
+  color-scheme: dark;
+
+  @include theme(themes.$g100, true);
+}
+
+// ============================================================
+// App-level tokens (layered on top of Carbon)
+// ============================================================
+:root {
+  --app-sidebar-width: 256px;
+  --app-header-height: 56px;
+  --app-header-bg: #161616;
+  --app-header-border: #393939;
+  --app-header-action-hover: #353535;
+
+  // Map Carbon Design System typography custom properties to Next.js Google Fonts
+  --cds-font-family-sans: var(--font-ibm-plex-sans), "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --cds-font-family-mono: var(--font-ibm-plex-mono), "IBM Plex Mono", monospace;
+}
+
+// Force the loaded Next.js font on all Carbon components & elements
+html,
+body,
+input,
+button,
+select,
+textarea,
+[class*="cds--"] {
+  font-family: var(--cds-font-family-sans) !important;
+}
+
+code,
+pre,
+.cds--type-mono,
+[class*="cds--type-mono"] {
+  font-family: var(--cds-font-family-mono) !important;
+}
+
+// ============================================================
+// Layout reset for full-screen app shell
+// ============================================================
+html,
+body {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// ============================================================
+// Compact scrollbar
+// ============================================================
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--cds-border-subtle-01);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cds-border-strong-01);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+// ============================================================
+// App Shell overrides – compact header & sidenav
+// ============================================================
+
+// Override Carbon header height to match compact design & set to standard black theme
+.cds--header {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100% !important;
+  z-index: 8000 !important;
+  height: var(--app-header-height);
+  min-height: var(--app-header-height);
+  background-color: var(--app-header-bg) !important;
+  border-bottom: 1px solid var(--app-header-border) !important;
+}
+
+.cds--header__name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #ffffff !important;
+  
+  span {
+    color: #8d8d8d !important;
+  }
+}
+
+.app-header-search {
+  position: relative;
+  flex: 1;
+  max-width: 32rem;
+  margin: 0 2rem;
+  z-index: 10;
+}
+
+.app-header-search .cds--search {
+  background: #262626;
+  border-bottom: 1px solid #525252;
+}
+
+.app-header-search .cds--search-input,
+.app-header-search .cds--search-magnifier-icon {
+  color: #f4f4f4;
+}
+
+.cds--header__global-bar {
+  display: flex !important;
+  align-items: center !important;
+  margin-left: auto !important;
+  height: 100% !important;
+  padding-right: 1.25rem !important;
+}
+
+.cds--header__global-action svg,
+.cds--header__menu-trigger svg,
+.cds--header__menu-toggle svg,
+.cds--header__action svg {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+.cds--header__global-action,
+.cds--header__action {
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--cds-focus);
+  }
+
+  &:hover {
+    background-color: var(--app-header-action-hover) !important;
+  }
+}
+
+// Keep menu toggle visual style identical in expand/collapse states.
+// Only icon glyph should communicate the state.
+.cds--header__menu-toggle,
+.cds--header__menu-toggle.cds--header__action--active,
+.cds--header__menu-toggle[aria-expanded="true"],
+.cds--header__menu-toggle[aria-pressed="true"] {
+  background-color: transparent !important;
+}
+
+.cds--header__menu-toggle:hover,
+.cds--header__menu-toggle.cds--header__action--active:hover,
+.cds--header__menu-toggle:focus-visible,
+.cds--header__menu-toggle.cds--header__action--active:focus-visible {
+  background-color: var(--app-header-action-hover) !important;
+}
+
+.cds--side-nav {
+  width: var(--app-sidebar-width);
+  top: var(--app-header-height);
+}
+
+.cds--side-nav--expanded {
+  width: var(--app-sidebar-width);
+}
+
+// Hide Carbon side nav overlay on desktop and force visibility
+@media (min-width: 66rem) {
+  .cds--side-nav__overlay {
+    display: none !important;
+  }
+  
+  .cds--side-nav {
+    transform: translateX(0) !important;
+    visibility: visible !important;
+  }
+}
+
+.cds--side-nav__navigation {
+  padding-top: 0.5rem;
+}
+
+.app-sidenav-group-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cds-text-helper);
+  padding: 0.5rem 1rem 0.375rem;
+}
+
+.cds--side-nav__link {
+  font-size: 0.8125rem;
+  height: 2.25rem;
+  min-height: 2.25rem;
+}
+
+.cds--side-nav__link--current {
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 0 var(--cds-link-primary);
+  background-color: var(--cds-layer-hover-01);
+}
+
+// ============================================================
+// Data Table – compact density
+// ============================================================
+.cds--data-table td,
+.cds--data-table th {
+  font-size: 0.8125rem;
+}
+
+.cds--data-table--sm td,
+.cds--data-table--sm th {
+  padding-block: 0.375rem;
+}
+
+// ============================================================
+// Content area - Full width & height relative to header/sidebar
+// ============================================================
+.app-content {
+  position: fixed;
+  top: var(--app-header-height) !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  margin-left: 0 !important; // Override Carbon's default margin-left
+  margin-top: 0 !important;  // Override Carbon's default margin-top
+  padding: 0 !important;     // Override Carbon's default padding
+  overflow: hidden !important;
+  background-color: var(--cds-background);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.app-content-body {
+  padding: 0;
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.app-footer {
+  background-color: var(--cds-layer-01);
+  border-top: 1px solid var(--cds-border-subtle-01);
+  padding: 1rem 2rem;
+  font-size: 0.75rem;
+  color: var(--cds-text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+
+  &__links {
+    display: flex;
+    gap: 1.5rem;
+    
+    a {
+      color: var(--cds-link-primary);
+      text-decoration: none;
+      font-weight: 500;
+      
+      &:hover {
+        text-decoration: underline;
+        color: var(--cds-link-primary-hover);
+      }
+    }
+  }
+}
+
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.dashboard-workspace {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 0;
+  height: 100%;
+  background: var(--cds-layer-01);
+}
+
+// ============================================================
+// IBM-style Dashboard Workspace Shell
+// ============================================================
+.dashboard-shell {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 40px 1fr;
+  min-height: 0;
+}
+
+.dashboard-toolbar {
+  height: 40px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.75rem;
+  gap: 0.75rem;
+}
+
+.dashboard-toolbar__left {
+  font-size: 0.75rem;
+  color: var(--cds-text-secondary);
+  white-space: nowrap;
+}
+
+.dashboard-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dashboard-body {
+  display: grid;
+  grid-template-columns: 48px 280px minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dashboard-body--properties-open {
+  grid-template-columns: 48px 280px minmax(0, 1fr) 320px;
+}
+
+.dashboard-activity-rail {
+  border-right: 1px solid #e0e0e0;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0.25rem 0;
+}
+
+.dashboard-activity-rail__item {
+  width: 100% !important;
+  height: 48px !important;
+  max-width: 100% !important;
+  min-height: 48px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-left: 3px solid transparent !important;
+  color: var(--cds-text-secondary) !important;
+  cursor: pointer !important;
+  border-radius: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 120ms ease;
+
+  svg {
+    color: var(--cds-text-secondary) !important;
+    fill: var(--cds-text-secondary) !important;
+  }
+}
+
+.dashboard-activity-rail__item:hover {
+  background: var(--cds-layer-hover-01) !important;
+}
+
+.dashboard-activity-rail__item.is-active {
+  border-left-color: #0f62fe !important;
+  background: #edf5ff !important;
+
+  svg {
+    color: #0f62fe !important;
+    fill: #0f62fe !important;
+  }
+}
+
+.dashboard-left-panel {
+  border-right: 1px solid #e0e0e0;
+  background: #ffffff;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.dashboard-panel-content {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+  min-height: 0;
+  flex-grow: 1;
+}
+
+.dashboard-tree-wrap {
+  overflow-y: auto;
+  min-height: 0;
+  border: 1px solid #e0e0e0;
+  padding: 0.5rem;
+}
+
+.dashboard-canvas-workspace {
+  background: #f4f4f4;
+  padding: 0.5rem;
+  overflow: auto;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dashboard-filter-inline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 0.5rem;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  padding: 0.5rem;
+}
+
+.dashboard-filter-inline .cds--list-box__field,
+.dashboard-filter-inline .cds--search-input {
+  min-height: 2rem;
+}
+
+.dashboard-filter-chips {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-empty-state {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  padding: 1rem;
+}
+
+.dashboard-empty-state h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.dashboard-empty-state p {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--cds-text-secondary);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.dashboard-grid--kpi .workspace-tile {
+  grid-column: span 3;
+  min-height: 120px;
+}
+
+.dashboard-grid--kpi .iku-kpi-tile {
+  grid-column: span 3;
+}
+
+.dashboard-grid--two-col .workspace-tile {
+  grid-column: span 6;
+}
+
+.workspace-kpi-value {
+  font-size: 1.8rem;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.workspace-tile {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  padding: 0.75rem !important;
+  cursor: pointer;
+}
+
+.workspace-tile:hover {
+  border-color: #0f62fe;
+}
+
+.workspace-tile.is-selected {
+  border: 2px solid #0f62fe;
+}
+
+.workspace-tile__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.workspace-tile__header h4 {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+}
+
+.workspace-tile__body {
+  min-height: 0;
+}
+
+.dashboard-properties-side {
+  width: 0;
+  overflow: hidden;
+  border-left: 1px solid transparent;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transition: width 180ms cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+
+.dashboard-properties-side.is-open {
+  width: 320px;
+  border-left-color: #e0e0e0;
+}
+
+.dashboard-workspace--properties-open {
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
+}
+
+.dashboard-data-panel {
+  border-right: 1px solid var(--cds-border-subtle-01);
+  background: var(--cds-layer-01);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-panel-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--cds-border-subtle-01);
+  padding: 0.75rem 1rem;
+  color: var(--cds-text-secondary);
+}
+
+.dashboard-panel-body {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+}
+
+.dashboard-data-panel__dataset {
+  font-size: 0.8125rem;
+  margin: 0;
+  color: var(--cds-text-primary);
+}
+
+.dashboard-canvas {
+  background: #f4f4f4;
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dashboard-canvas__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.dashboard-canvas__title {
+  font-size: 1.125rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.dashboard-canvas__subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--cds-text-secondary);
+}
+
+.dashboard-canvas-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.dashboard-canvas-grid--kpi .iku-kpi-tile {
+  grid-column: span 3;
+  min-height: 140px !important;
+}
+
+.dashboard-canvas-grid--two-col .dashboard-tile {
+  grid-column: span 6;
+}
+
+.dashboard-table-tile {
+  min-height: 350px;
+}
+
+.dashboard-properties-panel {
+  width: 0;
+  opacity: 0;
+  border-left: 1px solid transparent;
+  overflow: hidden;
+  background: var(--cds-layer-01);
+  transition: width 180ms cubic-bezier(0.2, 0, 0.38, 0.9), opacity 120ms ease;
+}
+
+.dashboard-properties-panel.is-open {
+  width: 320px;
+  opacity: 1;
+  border-left-color: var(--cds-border-subtle-01);
+}
+
+.dashboard-properties-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+}
+
+.dashboard-saved-views {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-top: 0.75rem;
+}
+
+.dashboard-starter {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: #f4f4f4;
+}
+
+.dashboard-starter__tile {
+  width: min(420px, 92%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dashboard-starter__tile h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dashboard-starter__tile p {
+  margin: 0;
+  color: var(--cds-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.dashboard-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.dashboard-main-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 1rem;
+}
+
+.dashboard-main-grid--triple {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.dashboard-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.dashboard-tile {
+  padding: 1.25rem 1rem !important;
+  border: 1px solid var(--cds-border-subtle-01) !important;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0, 0.38, 0.9),
+    border-color 180ms cubic-bezier(0.2, 0, 0.38, 0.9),
+    box-shadow 180ms cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+
+.dashboard-tile--hover:hover {
+  transform: translateY(-2px);
+  border-color: var(--cds-border-strong-01) !important;
+  box-shadow: 0 8px 18px rgba(8, 20, 36, 0.08);
+}
+
+.dashboard-tile:focus-within {
+  box-shadow: inset 0 0 0 1px var(--cds-focus);
+}
+
+.dashboard-tile__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  margin-bottom: 1rem;
+}
+
+.dashboard-filter-control {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, var(--cds-layer-01) 0%, var(--cds-layer-02) 100%);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 4px;
+}
+
+.dashboard-filter-control__reset {
+  min-width: 9.5rem;
+}
+
+// ============================================================
+// Elegant Carbon dropdown/select treatment
+// ============================================================
+.dashboard-filter-control .cds--list-box,
+.upload-sheet-form .cds--list-box {
+  border-radius: 4px;
+  border: 1px solid var(--cds-border-subtle-01);
+  background-color: var(--cds-layer-01);
+  transition:
+    border-color 160ms cubic-bezier(0.2, 0, 0.38, 0.9),
+    box-shadow 160ms cubic-bezier(0.2, 0, 0.38, 0.9),
+    background-color 160ms cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+
+.dashboard-filter-control .cds--list-box:hover,
+.upload-sheet-form .cds--list-box:hover {
+  border-color: var(--cds-border-strong-01);
+  background-color: var(--cds-layer-hover-01);
+}
+
+.dashboard-filter-control .cds--list-box:focus-within,
+.upload-sheet-form .cds--list-box:focus-within {
+  border-color: var(--cds-focus);
+  box-shadow: inset 0 0 0 1px var(--cds-focus);
+}
+
+.dashboard-filter-control .cds--list-box__field,
+.upload-sheet-form .cds--list-box__field {
+  min-height: 2.5rem;
+  padding-inline: 0.75rem;
+}
+
+.dashboard-filter-control .cds--list-box__label,
+.upload-sheet-form .cds--list-box__label {
+  font-size: 0.8125rem;
+  color: var(--cds-text-primary);
+}
+
+.dashboard-filter-control .cds--list-box__menu,
+.upload-sheet-form .cds--list-box__menu {
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 4px;
+  box-shadow: 0 10px 24px rgba(8, 20, 36, 0.14);
+  overflow: hidden;
+}
+
+.dashboard-filter-control .cds--list-box__menu-item__option,
+.upload-sheet-form .cds--list-box__menu-item__option {
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 48rem) {
+  .dashboard-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-header-search {
+    display: none;
+  }
+
+  .dashboard-workspace,
+  .dashboard-workspace--properties-open {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-toolbar__left {
+    display: none;
+  }
+
+  .dashboard-body,
+  .dashboard-body--properties-open {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-activity-rail,
+  .dashboard-left-panel {
+    display: none;
+  }
+
+  .dashboard-filter-inline {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-grid--kpi .workspace-tile,
+  .dashboard-grid--kpi .iku-kpi-tile,
+  .dashboard-grid--two-col .workspace-tile {
+    grid-column: span 12;
+  }
+
+  .dashboard-data-panel {
+    display: none;
+  }
+
+  .dashboard-canvas-grid--kpi .iku-kpi-tile,
+  .dashboard-canvas-grid--two-col .dashboard-tile {
+    grid-column: span 12;
+  }
+
+  .dashboard-properties-side,
+  .dashboard-properties-side.is-open {
+    width: 100%;
+    border-left-color: transparent;
+    border-top: 1px solid var(--cds-border-subtle-01);
+  }
+
+  .dashboard-filter-control {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-filter-control__reset {
+    width: 100%;
+  }
+}
+
+@media (max-width: 66rem) and (min-width: 48.01rem) {
+  .dashboard-grid--kpi .workspace-tile,
+  .dashboard-grid--kpi .iku-kpi-tile {
+    grid-column: span 6;
+  }
+
+  .dashboard-grid--two-col .workspace-tile {
+    grid-column: span 12;
+  }
+}
+
+
+// ============================================================
+// Recharts – color overrides to match Carbon palette
+// ============================================================
+.recharts-cartesian-grid line {
+  stroke: var(--cds-border-subtle-01);
+}
+
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: var(--cds-layer-01) !important;
+  border: 1px solid var(--cds-border-subtle-01) !important;
+  color: var(--cds-text-primary) !important;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+}
+
+// Normalize Carbon/IBM dropdown menu item rendering
+// Prevent browser list markers (dot bullets) from appearing in dropdown options.
+.cds--list-box__menu,
+.cds--list-box__menu-item,
+.cds--list-box__menu-item__option {
+  list-style: none !important;
+}
+
+.cds--list-box__menu {
+  margin: 0 !important;
+  padding: 0 !important;
+  padding-inline-start: 0 !important;
+}
+
+.cds--list-box__menu-item {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.cds--list-box__menu-item::marker,
+.cds--list-box__menu-item__option::marker {
+  content: "" !important;
+}
+
+.cds--list-box__menu-item__option {
+  padding-left: 1rem !important;
+}
+
+// Ensure Carbon dropdown menu inside modal is not clipped by modal content/footer.
+.cds--modal-content,
+.cds--modal-content > div {
+  overflow: visible !important;
+}
+
+.cds--list-box,
+.cds--list-box__menu {
+  position: relative;
+  z-index: 9100;
+}
+
+
+// ============================================================
+// KPI Card – slight elevation
+// ============================================================
+.iku-kpi-card {
+  background-color: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+
+  &__label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cds-text-secondary);
+    margin-bottom: 0.25rem;
+  }
+
+  &__value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--cds-text-primary);
+  }
+}
+
+// ============================================================
+// Upload dropzone
+// ============================================================
+.iku-dropzone {
+  border: 2px dashed var(--cds-border-subtle-01);
+  border-radius: 4px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 150ms;
+
+  &:hover,
+  &:focus-visible,
+  &--active {
+    border-color: var(--cds-focus);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--cds-focus);
+  }
+
+  svg {
+    color: var(--cds-text-secondary);
+  }
+}
+
+.upload-panel {
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.upload-panel__header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--cds-border-subtle-01);
+}
+
+.upload-panel__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  margin: 0;
+}
+
+.upload-panel__desc {
+  font-size: 0.75rem;
+  color: var(--cds-text-secondary);
+  margin-top: 0.25rem;
+  margin-bottom: 0;
+}
+
+.upload-panel__body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.upload-panel__switcher {
+  width: fit-content;
+}
+
+.upload-sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.upload-sheet-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.upload-sheet-form__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.upload-sheet-form__note {
+  font-size: 0.75rem;
+  color: var(--cds-text-helper);
+  margin: 0;
+}
+
+@media (max-width: 48rem) {
+  .upload-sheet-form__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-panel__switcher {
+    width: 100%;
+  }
+}
+
+// ============================================================
+// Chart card wrapper
+// ============================================================
+.iku-chart-card {
+  background-color: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 4px;
+  overflow: hidden;
+
+  &__header {
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--cds-border-subtle-01);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--cds-text-secondary);
+  }
+
+  &__body {
+    padding: 0.75rem 1rem;
+  }
+}
+
+.iku-kpi-tile {
+  background-color: var(--cds-layer-01) !important;
+  border: 1px solid var(--cds-border-subtle-01) !important;
+  border-radius: 0 !important; // Flat square edges
+  padding: 1.25rem 1rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  min-height: 110px !important;
+  box-shadow: none !important; // Flat design
+  transition: border-color 70ms cubic-bezier(0.2, 0, 0.38, 0.9) !important;
+
+  &:hover {
+    border-color: var(--cds-border-strong-01) !important;
+  }
+
+  &__label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--cds-text-secondary);
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+  }
+
+  &__value {
+    font-size: 1.75rem;
+    font-weight: 300; // IBM Carbon light weight
+    color: var(--cds-text-primary);
+    line-height: 1.1;
+    margin-bottom: 0.375rem;
+  }
+
+  &__subtext {
+    font-size: 0.75rem;
+    color: var(--cds-text-helper);
+    line-height: 1.2;
+  }
+}
+
+// ============================================================
+// Sidebar Toggle Button on Desktop & Profile Avatar Styles
+// ============================================================
+// Force the sidebar toggle hamburger menu button to display on all screen sizes
+.cds--header__menu-toggle {
+  display: flex !important;
+}
+
+// Collapsed sidebar content viewport adjustments
+.app-content--collapsed {
+  left: 0 !important;
+}
+
+// Re-adjust sidebar hidden state when collapsed
+.cds--side-nav:not(.cds--side-nav--expanded) {
+  transform: translateX(-100%) !important;
+  visibility: hidden !important;
+}
+
+// Circular profile avatar inside the header
+.app-header-avatar {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50%;
+  background-color: var(--cds-layer-hover-01, #353535) !important;
+  color: #ffffff;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer;
+  border: 1px solid var(--app-header-border, #393939) !important;
+  box-shadow: none !important;
+  transition: transform 150ms ease, background-color 150ms ease;
+  padding: 0 !important;
+
+  svg {
+    width: 16px !important;
+    height: 16px !important;
+    color: #ffffff !important;
+    fill: #ffffff !important;
+  }
+  
+  &:hover {
+    transform: scale(1.05);
+    background-color: var(--cds-layer-hover-02, #474747) !important;
+  }
+}
+
+// ============================================================
+// Standardized Sidebar Lists (Carbon Design System Concept)
+// ============================================================
+
+.sidebar-contained-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.sidebar-list-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border-bottom: 1px solid var(--cds-border-subtle-00, #e0e0e0);
+}
+
+.sidebar-list-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 2.5rem; // Carbon standard height
+  padding: 0 1rem;
+  background-color: transparent;
+  color: var(--cds-text-secondary, #525252);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: background-color 70ms cubic-bezier(0.2, 0, 0.38, 0.9), color 70ms cubic-bezier(0.2, 0, 0.38, 0.9);
+  user-select: none;
+  box-sizing: border-box;
+
+  &:hover {
+    background-color: var(--cds-layer-hover-01, #e5e5e5);
+    color: var(--cds-text-primary, #161616);
+  }
+
+  &.is-active {
+    background-color: var(--cds-layer-selected-01, #e0e0e0);
+    color: var(--cds-text-primary, #161616);
+    font-weight: 600;
+    border-left: 4px solid var(--cds-link-primary, #0f62fe);
+    padding-left: calc(1rem - 4px); // Adjust padding to offset the border thickness
+  }
+}
+
+.sidebar-nested-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background-color: var(--cds-layer-01, #f4f4f4);
+}
+
+.sidebar-nested-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 2.25rem;
+  padding: 0 1rem 0 2.25rem; // Indented for nested items in folder
+  background-color: transparent;
+  color: var(--cds-text-secondary, #525252);
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background-color 70ms cubic-bezier(0.2, 0, 0.38, 0.9), color 70ms cubic-bezier(0.2, 0, 0.38, 0.9);
+  user-select: none;
+  box-sizing: border-box;
+
+  &:hover {
+    background-color: var(--cds-layer-hover-01, #e5e5e5);
+    color: var(--cds-text-primary, #161616);
+  }
+
+  &.is-active {
+    background-color: var(--cds-layer-selected-01, #e0e0e0);
+    color: var(--cds-text-primary, #161616);
+    font-weight: 600;
+    border-left: 4px solid var(--cds-link-primary, #0f62fe);
+    padding-left: calc(2.25rem - 4px);
+  }
+}

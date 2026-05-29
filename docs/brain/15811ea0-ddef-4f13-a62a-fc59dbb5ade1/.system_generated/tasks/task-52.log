@@ -1,0 +1,67 @@
+
+> metadata-hub@0.1.0 build
+> next build
+
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /Users/pabrik/working/mekarsa/products/varguard/package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * /Users/pabrik/working/mekarsa/products/varguard/metadata-hub/package-lock.json
+
+▲ Next.js 16.2.6 (Turbopack)
+
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 2 errors:
+./metadata-hub/app/login/page.tsx:6:1
+Export Chrome doesn't exist in target module
+  4 | import { useRouter } from "next/navigation";
+  5 | import Link from "next/link";
+> 6 | import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, Chrome } from "lucide-react";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 |
+  8 | export default function LoginPage() {
+  9 |   const router = useRouter();
+
+The export Chrome was not found in module [project]/metadata-hub/node_modules/lucide-react/dist/esm/lucide-react.mjs [app-client] (ecmascript).
+Did you mean to import ChartColumnDecreasing?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./metadata-hub/app/login/page.tsx [Client Component Browser]
+    ./metadata-hub/app/login/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./metadata-hub/app/login/page.tsx [Client Component SSR]
+    ./metadata-hub/app/login/page.tsx [Server Component]
+
+
+./metadata-hub/app/login/page.tsx:6:1
+Export Chrome doesn't exist in target module
+  4 | import { useRouter } from "next/navigation";
+  5 | import Link from "next/link";
+> 6 | import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, Chrome } from "lucide-react";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 |
+  8 | export default function LoginPage() {
+  9 |   const router = useRouter();
+
+The export Chrome was not found in module [project]/metadata-hub/node_modules/lucide-react/dist/esm/lucide-react.mjs [app-ssr] (ecmascript).
+Did you mean to import ChartColumnDecreasing?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./metadata-hub/app/login/page.tsx [Client Component Browser]
+    ./metadata-hub/app/login/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./metadata-hub/app/login/page.tsx [Client Component SSR]
+    ./metadata-hub/app/login/page.tsx [Server Component]
+
+
+    at <unknown> (./metadata-hub/app/login/page.tsx:6:1)
+    at <unknown> (./metadata-hub/app/login/page.tsx:6:1)
