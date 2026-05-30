@@ -36,13 +36,17 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "asc" }
     });
 
-    const connections: SheetConnection[] = rows.map((row) => ({
-      id: row.id,
-      type: row.type as "sheet" | "folder",
-      name: row.name,
-      url: row.url,
-      files: Array.isArray(row.files) ? (row.files as any) : undefined
-    }));
+    const connections: SheetConnection[] = rows
+      .map((row) =>
+        normalizeConnection({
+          id: String(row.id ?? ""),
+          type: String(row.type ?? ""),
+          name: String(row.name ?? ""),
+          url: String(row.url ?? ""),
+          files: Array.isArray(row.files) ? row.files : undefined
+        })
+      )
+      .filter((item): item is SheetConnection => Boolean(item));
 
     return NextResponse.json({ connections });
   } catch {
