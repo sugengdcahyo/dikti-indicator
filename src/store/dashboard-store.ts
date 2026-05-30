@@ -42,7 +42,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   filters: initialFilters,
   kpiThreshold: 80,
   activeFileName: "",
-  activeDashboardTab: "IKU 003",
+  activeDashboardTab: "Overview",
   setData: (rows, columns) =>
     set({
       rows,
