@@ -20,13 +20,10 @@ RUN npm run build
 
 FROM base AS runner
 ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/.next/standalone/iku ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.ts ./next.config.ts
-COPY --from=builder /app/next-env.d.ts ./next-env.d.ts
-COPY --from=builder /app/prisma ./prisma
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["node", "server.js"]
