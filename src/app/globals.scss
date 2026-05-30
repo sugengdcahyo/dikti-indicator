@@ -303,14 +303,14 @@ body {
 .app-footer {
   background-color: var(--cds-layer-01);
   border-top: 1px solid var(--cds-border-subtle-01);
-  padding: 1rem 2rem;
-  font-size: 0.75rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.6875rem;
   color: var(--cds-text-secondary);
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.5rem;
 
   &__links {
     display: flex;
@@ -348,7 +348,7 @@ body {
 .dashboard-shell {
   height: 100%;
   display: grid;
-  grid-template-rows: 40px 1fr;
+  grid-template-rows: 1fr;
   min-height: 0;
 }
 
@@ -373,6 +373,65 @@ body {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.dashboard-toolbars {
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dashboard-toolbars .cds--search {
+  flex: 1 1 auto;
+}
+
+.iku001-filter-panel {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid var(--cds-border-subtle-01);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 1;
+  overflow: visible;
+}
+
+.iku001-filter-panel--overlay {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  width: 100%;
+  max-width: 420px;
+  z-index: 999;
+}
+
+.iku001-filter-card {
+  background: #ffffff;
+  border: 1px solid var(--cds-border-subtle-01);
+  padding: 0;
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+}
+
+.iku001-filter-card:focus-within {
+  z-index: 50;
+}
+
+.iku001-filter-card .cds--list-box {
+  position: relative;
+  z-index: 60;
+}
+
+.iku001-filter-card .cds--list-box__menu {
+  z-index: 70 !important;
 }
 
 .dashboard-body {
@@ -462,6 +521,7 @@ body {
 .dashboard-canvas-workspace {
   background: #f4f4f4;
   padding: 0.5rem;
+  padding-bottom: 1.25rem;
   overflow: auto;
   min-width: 0;
   height: 100%;
@@ -915,11 +975,29 @@ body {
 }
 
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background-color: var(--cds-layer-01) !important;
-  border: 1px solid var(--cds-border-subtle-01) !important;
-  color: var(--cds-text-primary) !important;
+  background-color: #161616 !important;
+  border: 1px solid rgba(244, 244, 244, 0.32) !important;
+  color: #f4f4f4 !important;
   border-radius: 4px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35) !important;
   font-size: 0.8125rem;
+  opacity: 1 !important;
+}
+
+.recharts-tooltip-wrapper,
+.recharts-tooltip-wrapper * {
+  opacity: 1 !important;
+}
+
+// Global solid hover background for Recharts active area/cursor
+.recharts-tooltip-cursor {
+  fill: #e8f1ff !important;
+  fill-opacity: 1 !important;
+}
+
+.recharts-rectangle.recharts-tooltip-cursor {
+  fill: #e8f1ff !important;
+  fill-opacity: 1 !important;
 }
 
 // Normalize Carbon/IBM dropdown menu item rendering

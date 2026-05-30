@@ -62,6 +62,7 @@ export default function LoginPage() {
   // Forgot Password States
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [forgotDebugToken, setForgotDebugToken] = useState<string | null>(null);
 
   // General Loading & Error States
   const [isLoading, setIsLoading] = useState(false);
@@ -109,7 +110,7 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  const handleCredentialsLogin = (e: React.FormEvent) => {
+  const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
       setAuthError("Email dan password wajib diisi.");
@@ -119,48 +120,33 @@ export default function LoginPage() {
     setIsLoading(true);
     setAuthError(null);
 
-    // Simulate standard institutional credentials check
-    setTimeout(() => {
-      // Check custom registered users from localStorage
-      let matchedRegisteredUser = null;
-      try {
-        const usersRaw = localStorage.getItem("iku-registered-users");
-        if (usersRaw) {
-          const registeredUsers = JSON.parse(usersRaw);
-          matchedRegisteredUser = registeredUsers.find(
-            (u: any) => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password.trim()
-          );
-        }
-      } catch (err) {
-        console.error("Gagal membaca akun terdaftar:", err);
+    try {
+      const resp = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password.trim()
+        })
+      });
+
+      const json = await resp.json();
+      if (!resp.ok) {
+        setAuthError(json.error || "Email atau sandi institusi salah.");
+        setIsLoading(false);
+        return;
       }
 
-      if (email.trim().toLowerCase() === "admin@iku.ac.id" && password === "admin123") {
-        const session = {
-          name: "Administrator IKU",
-          email: "admin@iku.ac.id",
-          avatarUrl: "",
-          provider: "credentials"
-        };
-        localStorage.setItem("iku-user-session", JSON.stringify(session));
-        router.push("/dashboard");
-      } else if (matchedRegisteredUser) {
-        const session = {
-          name: matchedRegisteredUser.name,
-          email: matchedRegisteredUser.email,
-          avatarUrl: "",
-          provider: "credentials"
-        };
-        localStorage.setItem("iku-user-session", JSON.stringify(session));
-        router.push("/dashboard");
-      } else {
-        setAuthError("Email atau sandi institusi salah. Gunakan admin@iku.ac.id / admin123");
-        setIsLoading(false);
-      }
-    }, 1200);
+      localStorage.setItem("iku-user-session", JSON.stringify(json.user));
+      router.push("/dashboard");
+    } catch (error) {
+      console.error("Login credentials error:", error);
+      setAuthError("Gagal menghubungkan login ke server.");
+      setIsLoading(false);
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regName.trim() || !regEmail.trim() || !regPassword.trim() || !regConfirmPassword.trim()) {
       setAuthError("Semua kolom pendaftaran wajib diisi.");
@@ -178,27 +164,23 @@ export default function LoginPage() {
     setIsLoading(true);
     setAuthError(null);
 
-    // Simulate database registration save in localStorage
-    setTimeout(() => {
-      try {
-        const usersRaw = localStorage.getItem("iku-registered-users");
-        const registeredUsers = usersRaw ? JSON.parse(usersRaw) : [];
-        
-        // Prevent duplicate registration
-        if (registeredUsers.some((u: any) => u.email.toLowerCase() === regEmail.trim().toLowerCase())) {
-          setAuthError("Email institusi ini sudah terdaftar.");
-          setIsLoading(false);
-          return;
-        }
-
-        registeredUsers.push({
+    try {
+      const resp = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: regName.trim(),
           email: regEmail.trim(),
-          password: regPassword.trim()
-        });
-        localStorage.setItem("iku-registered-users", JSON.stringify(registeredUsers));
-      } catch (err) {
-        console.error("Gagal menyimpan pendaftaran:", err);
+          password: regPassword.trim(),
+          confirmPassword: regConfirmPassword.trim()
+        })
+      });
+
+      const json = await resp.json();
+      if (!resp.ok) {
+        setAuthError(json.error || "Gagal menyimpan pendaftaran.");
+        setIsLoading(false);
+        return;
       }
 
       setRegSuccess(true);
@@ -213,10 +195,14 @@ export default function LoginPage() {
         setView("login");
         setRegSuccess(false);
       }, 2500);
-    }, 1500);
+    } catch (error) {
+      console.error("Register error:", error);
+      setAuthError("Gagal menghubungkan pendaftaran ke server.");
+      setIsLoading(false);
+    }
   };
 
-  const handleForgotPassword = (e: React.FormEvent) => {
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail.trim()) {
       setAuthError("Email institusi wajib diisi.");
@@ -226,13 +212,29 @@ export default function LoginPage() {
     setIsLoading(true);
     setAuthError(null);
 
-    // Simulate dispatching recover password email
-    setTimeout(() => {
-      // Optionally mock update password for standard account if it exists
+    try {
+      const resp = await fetch("/api/auth/password/forgot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim() })
+      });
+
+      const json = await resp.json();
+      if (!resp.ok) {
+        setAuthError(json.error || "Gagal mengirim permintaan reset password.");
+        setIsLoading(false);
+        return;
+      }
+
       setForgotSuccess(true);
+      setForgotDebugToken(json.debugResetToken || null);
       setIsLoading(false);
       setForgotEmail("");
-    }, 1500);
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      setAuthError("Gagal menghubungkan reset password ke server.");
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleLogin = () => {
@@ -577,6 +579,16 @@ export default function LoginPage() {
                     lowContrast
                     hideCloseButton
                     style={{ margin: "0.5rem 0 0 0", width: "100%" }}
+                  />
+                )}
+                {forgotSuccess && forgotDebugToken && (
+                  <InlineNotification
+                    kind="info"
+                    title="Debug Token (Dev)"
+                    subtitle={`Gunakan token ini ke endpoint /api/auth/password/reset: ${forgotDebugToken}`}
+                    lowContrast
+                    hideCloseButton
+                    style={{ margin: "0.25rem 0 0 0", width: "100%" }}
                   />
                 )}
 

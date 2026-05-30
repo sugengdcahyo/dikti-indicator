@@ -38,6 +38,7 @@ import {
   ChevronDown,
   ChevronRight,
   Renew,
+  Information,
   User,
   Logout,
   Notification,
@@ -45,28 +46,7 @@ import {
 } from "@carbon/icons-react";
 import { useDashboardStore } from "@/store/dashboard-store";
 import { parseSpreadsheetFile, parseSpreadsheetUrl } from "@/lib/data-helpers";
-
-type SpreadsheetFile = {
-  id: string;
-  name: string;
-  url: string;
-};
-
-type SheetConnection = {
-  id: string;
-  type: "sheet" | "folder";
-  name: string;
-  url: string;
-  files?: SpreadsheetFile[];
-};
-
-type ExistingDatasetOption = {
-  id: string;
-  label: string;
-  name: string;
-  url: string;
-  type: "sheet" | "folder";
-};
+import type { SheetConnection, SpreadsheetFile } from "@/lib/source-connection-types";
 
 const dashboardMenuItems = [
   "Overview",
@@ -109,7 +89,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isParsing, setIsParsing] = useState(false);
   const [newConnName, setNewConnName] = useState("");
   const [newConnUrl, setNewConnUrl] = useState("");
-  const [selectedExistingDataset, setSelectedExistingDataset] = useState<ExistingDatasetOption | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Edit Connection States
@@ -145,6 +124,42 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const getSessionEmail = () => {
+    if (currentUser?.email) return currentUser.email;
+    try {
+      const raw = localStorage.getItem("iku-user-session");
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed?.email ? String(parsed.email) : "";
+    } catch {
+      return "";
+    }
+  };
+
+  const persistConnectionsToServer = async (nextConn: SheetConnection[]) => {
+    const email = getSessionEmail().toLowerCase();
+    if (!email) throw new Error("SESSION_EMAIL_MISSING");
+
+    const resp = await fetch(`/api/sources`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userEmail: email,
+        connections: nextConn
+      })
+    });
+    if (!resp.ok) throw new Error("PERSIST_FAILED");
+  };
+
+  const saveConnections = async (nextConn: SheetConnection[]) => {
+    setConnections(nextConn);
+    try {
+      await persistConnectionsToServer(nextConn);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   // Close profile menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -171,73 +186,74 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [router, pathname]);
 
-  // Load connections from LocalStorage on mount
+  // Load source connections from NeonDB.
   useEffect(() => {
-    const raw = localStorage.getItem("iku-sheet-connections");
-    if (raw) {
+    if (!currentUser?.email) return;
+
+    const loadConnections = async () => {
       try {
-        let parsed = JSON.parse(raw);
-        
-        // Proactively delete any old sample/demo connection data from the user's browser
-        if (Array.isArray(parsed)) {
-          parsed = parsed.filter((c: SheetConnection) => c.id !== "drive-folder-demo" && !c.url.includes("demo-iku-2026"));
-          setConnections(parsed);
-          localStorage.setItem("iku-sheet-connections", JSON.stringify(parsed));
-          
-          // Restore active source from URL first, then fallback to first connection
-          const sourceFromUrl = new URLSearchParams(window.location.search).get("source");
-          let restoredFromUrl = false;
+        const resp = await fetch(`/api/sources?userEmail=${encodeURIComponent(currentUser.email)}`, {
+          cache: "no-store"
+        });
+        if (!resp.ok) throw new Error("failed");
+        const json = await resp.json();
+        const parsed = Array.isArray(json.connections) ? (json.connections as SheetConnection[]) : [];
+        const effectiveConnections = parsed;
+        setConnections(effectiveConnections);
 
-          if (sourceFromUrl === "active-file") {
-            setActiveSource("active-file");
-            restoredFromUrl = true;
-          } else if (sourceFromUrl) {
-            const directConn = parsed.find((c: SheetConnection) => c.id === sourceFromUrl);
-            if (directConn) {
-              if (directConn.type === "sheet") {
-                void handleSwitchDataset(directConn);
-              } else {
-                setExpandedFolders((prev) => ({ ...prev, [directConn.id]: true }));
-                setActiveSource(directConn.id);
-              }
-              restoredFromUrl = true;
+        const sourceFromUrl = new URLSearchParams(window.location.search).get("source");
+        let restoredFromUrl = false;
+
+        if (sourceFromUrl === "active-file") {
+          setActiveSource("active-file");
+          restoredFromUrl = true;
+        } else if (sourceFromUrl) {
+          const directConn = effectiveConnections.find((c: SheetConnection) => c.id === sourceFromUrl);
+          if (directConn) {
+            if (directConn.type === "sheet") {
+              void handleSwitchDataset(directConn);
             } else {
-              for (const folderConn of parsed.filter((c: SheetConnection) => c.type === "folder")) {
-                const matchedFile = folderConn.files?.find((f: SpreadsheetFile) => f.id === sourceFromUrl);
-                if (matchedFile) {
-                  setExpandedFolders((prev) => ({ ...prev, [folderConn.id]: true }));
-                  void handleLoadFolderFile(matchedFile, folderConn.id);
-                  restoredFromUrl = true;
-                  break;
-                }
-              }
+              setExpandedFolders((prev) => ({ ...prev, [directConn.id]: true }));
+              setActiveSource(directConn.id);
             }
-          }
-
-          if (!restoredFromUrl && parsed.length > 0) {
-            const firstConn = parsed[0];
-            if (firstConn.type === "folder" && firstConn.files && firstConn.files.length > 0) {
-              const firstFile = firstConn.files[0];
-              void handleLoadFolderFile(firstFile, firstConn.id);
-            } else if (firstConn.type === "sheet") {
-              void handleSwitchDataset(firstConn);
+            restoredFromUrl = true;
+          } else {
+            for (const folderConn of effectiveConnections.filter((c: SheetConnection) => c.type === "folder")) {
+              const matchedFile = folderConn.files?.find((f: SpreadsheetFile) => f.id === sourceFromUrl);
+              if (matchedFile) {
+                setExpandedFolders((prev) => ({ ...prev, [folderConn.id]: true }));
+                void handleLoadFolderFile(matchedFile, folderConn.id);
+                restoredFromUrl = true;
+                break;
+              }
             }
           }
         }
 
-        // Automatically expand any folders present in localStorage to show their nested spreadsheets
-        if (Array.isArray(parsed)) {
-          parsed.forEach((c: SheetConnection) => {
+        if (!restoredFromUrl && effectiveConnections.length > 0) {
+          const firstConn = effectiveConnections[0];
+          if (firstConn.type === "folder" && firstConn.files && firstConn.files.length > 0) {
+            const firstFile = firstConn.files[0];
+            void handleLoadFolderFile(firstFile, firstConn.id);
+          } else if (firstConn.type === "sheet") {
+            void handleSwitchDataset(firstConn);
+          }
+        }
+
+        if (Array.isArray(effectiveConnections)) {
+          effectiveConnections.forEach((c: SheetConnection) => {
             if (c.type === "folder") {
               setExpandedFolders((prev) => ({ ...prev, [c.id]: true }));
             }
           });
         }
       } catch {
-        localStorage.removeItem("iku-sheet-connections");
+        setConnections([]);
       }
-    }
-  }, []);
+    };
+
+    void loadConnections();
+  }, [currentUser?.email]);
 
   // Listen for global open-upload-modal event
   useEffect(() => {
@@ -410,12 +426,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           files: mockSpreadsheets,
         },
       ];
-      setConnections(nextConn);
-      localStorage.setItem("iku-sheet-connections", JSON.stringify(nextConn));
+      const saved = await saveConnections(nextConn);
+      if (!saved) {
+        triggerAlert(
+          "Sinkronisasi Tertunda",
+          "Koneksi belum tersimpan ke NeonDB. Coba ulangi saat koneksi server stabil.",
+          "warning"
+        );
+      }
 
       setNewConnName("");
       setNewConnUrl("");
-      setSelectedExistingDataset(null);
       setIsUploadModalOpen(false); // Close Modal on success
     } catch {
       setError("Gagal memuat koneksi. Periksa kembali URL dan pastikan akses publik berkas/folder terbuka.");
@@ -499,8 +520,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ? { ...c, name: editName.trim(), url: editUrl.trim(), files: c.type === "folder" ? nextFiles : undefined }
         : c
     );
-    setConnections(nextConn);
-    localStorage.setItem("iku-sheet-connections", JSON.stringify(nextConn));
+    void saveConnections(nextConn);
     setIsEditModalOpen(false);
   };
 
@@ -521,8 +541,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const nextConn = connections.map((c) =>
         c.id === conn.id ? { ...c, files: newFiles } : c
       );
-      setConnections(nextConn);
-      localStorage.setItem("iku-sheet-connections", JSON.stringify(nextConn));
+      void saveConnections(nextConn);
       
       // Load the first spreadsheet file in that folder by default
       void handleLoadFolderFile(newFiles[0], conn.id);
@@ -550,8 +569,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Delete Connection Handler
   const handleDeleteConnection = (id: string) => {
     const nextConn = connections.filter((c) => c.id !== id);
-    setConnections(nextConn);
-    localStorage.setItem("iku-sheet-connections", JSON.stringify(nextConn));
+    void saveConnections(nextConn);
     if (activeSource === id || activeSource.startsWith(id)) {
       setActiveSource("");
       setData([], []); // Reset store data
@@ -573,36 +591,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       [id]: !prev[id],
     }));
   };
-
-  const existingDatasetOptions = connections.flatMap<ExistingDatasetOption>((conn) => {
-    if (conn.type === "folder") {
-      const folderOption: ExistingDatasetOption = {
-        id: conn.id,
-        label: `${conn.name} (Folder)`,
-        name: conn.name,
-        url: conn.url,
-        type: "folder",
-      };
-      const fileOptions = (conn.files || []).map((file) => ({
-        id: `${conn.id}:${file.id}`,
-        label: `${file.name} (${conn.name})`,
-        name: file.name,
-        url: file.url,
-        type: "sheet" as const,
-      }));
-      return [folderOption, ...fileOptions];
-    }
-
-    return [
-      {
-        id: conn.id,
-        label: `${conn.name} (Sheet)`,
-        name: conn.name,
-        url: conn.url,
-        type: "sheet" as const,
-      },
-    ];
-  });
 
   return (
     <>
@@ -751,10 +739,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Content className="app-content">
         <div className="app-content-body">
           <div className="dashboard-shell">
-            <div className="dashboard-toolbar">
-              <div className="dashboard-toolbar__left">{getBreadcrumbsText()}</div>
-            </div>
-
             <div className="dashboard-body">
               <aside className="dashboard-activity-rail">
                 {activityItems.map(({ id, label, icon: Icon, href }) => (
@@ -996,7 +980,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         primaryButtonText="Hubungkan &amp; Muat Data"
         secondaryButtonText="Batal"
         onRequestClose={() => {
-          setSelectedExistingDataset(null);
           setIsUploadModalOpen(false);
         }}
         onRequestSubmit={() => void handleConnectSpreadsheet()}
@@ -1007,41 +990,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", padding: "2.5rem 0" }}>
             <Loading withOverlay={false} description="Mengurai data..." />
             <p style={{ fontSize: "0.875rem", color: "var(--cds-text-secondary)", fontWeight: 500, margin: 0 }}>
-              Sedang memproses dan menyelaraskan berkas indikator IKU003...
+              Sedang memproses dan menyelaraskan dataset...
             </p>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", padding: "0.5rem 0" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <p style={{ margin: 0, fontSize: "0.75rem", fontWeight: 600, color: "var(--cds-text-secondary)" }}>
+                Tipe Koneksi
+              </p>
               <ContentSwitcher
                 selectedIndex={sheetConnType === "sheet" ? 0 : 1}
                 onChange={({ name }) => setSheetConnType(name === "folder" ? "folder" : "sheet")}
                 size="sm"
-                style={{ width: "fit-content", marginBottom: "0.25rem" }}
+                style={{ width: "100%", marginBottom: "0.25rem" }}
               >
                 <Switch index={0} name="sheet" text="Single Google Sheet" />
                 <Switch index={1} name="folder" text="Google Drive Folder" />
               </ContentSwitcher>
 
-              <div className="upload-sheet-form__grid" style={{ gridTemplateColumns: "1fr 1fr", display: "grid", gap: "1rem" }}>
-                <Dropdown
-                  id={`${uid}-modal-existing-dataset`}
-                  titleText="Dataset Terkoneksi"
-                  label={existingDatasetOptions.length > 0 ? "Pilih dataset tersimpan (opsional)" : "Belum ada dataset tersimpan"}
-                  items={existingDatasetOptions}
-                  itemToString={(item) => item?.label || ""}
-                  selectedItem={selectedExistingDataset}
-                  onChange={({ selectedItem }) => {
-                    const item = (selectedItem as ExistingDatasetOption) || null;
-                    setSelectedExistingDataset(item);
-                    if (!item) return;
-                    setNewConnName(item.name);
-                    setNewConnUrl(item.url);
-                    setSheetConnType(item.type);
-                  }}
-                  disabled={existingDatasetOptions.length === 0}
-                />
-                <div />
+              <div className="upload-sheet-form__grid" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <TextInput
                   id={`${uid}-modal-conn-name`}
                   labelText="Nama Koneksi"
@@ -1057,10 +1025,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   onChange={(e) => setNewConnUrl(e.target.value)}
                 />
               </div>
-              <p style={{ fontSize: "0.75rem", color: "var(--cds-text-helper)", margin: 0 }}>
-                {sheetConnType === "sheet" 
-                  ? "Pastikan spreadsheet Anda memiliki izin akses 'Siapa saja yang memiliki link dapat melihat' agar data dapat terbaca."
-                  : "Pastikan folder Google Drive Anda memiliki izin akses publik agar daftar spreadsheet di dalamnya dapat terbaca."}
+              <p style={{ fontSize: "0.75rem", color: "var(--cds-text-helper)", margin: 0, display: "flex", alignItems: "flex-start", gap: "0.375rem" }}>
+                <Information size={14} aria-hidden="true" style={{ color: "#0f62fe", flexShrink: 0, marginTop: "1px" }} />
+                <span>
+                  {sheetConnType === "sheet" 
+                    ? "Pastikan spreadsheet Anda memiliki izin akses 'Siapa saja yang memiliki link dapat melihat' agar data dapat terbaca."
+                    : "Pastikan folder Google Drive Anda memiliki izin akses publik agar daftar spreadsheet di dalamnya dapat terbaca."}
+                </span>
               </p>
             </div>
 

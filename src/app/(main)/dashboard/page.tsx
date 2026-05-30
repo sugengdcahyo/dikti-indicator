@@ -51,6 +51,7 @@ import {
   Redo,
 } from "@carbon/icons-react";
 import { useDashboardMetrics, useDashboardStore } from "@/store/dashboard-store";
+import { Iku001Dashboard } from "@/components/dashboard/iku001-dashboard";
 
 const CDS_COLORS = ["#0f62fe", "#198038", "#8a3ffc", "#009d9a", "#ee538b", "#6929c4"];
 const CHART_TOOLTIP_STYLE = {
@@ -78,6 +79,12 @@ const activityItems = [
 
 type ActivityId = (typeof activityItems)[number]["id"];
 type ExistingConnectionOption = { id: string; label: string };
+type DashboardTabConnection = {
+  userEmail: string;
+  dashboardTab: string;
+  sourceId: string;
+  sourceLabel: string;
+};
 
 function ChartTooltip({
   active,
@@ -293,12 +300,14 @@ function PlaceholderDashboard({
   ikuCode,
   title,
   description,
-  onOpenUpload
+  onOpenUpload,
+  hasConnection
 }: {
   ikuCode: string;
   title: string;
   description: string;
   onOpenUpload: () => void;
+  hasConnection: boolean;
 }) {
   return (
     <Tile style={{ padding: "3rem 2rem", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", minHeight: "420px", background: "var(--cds-layer-01)", border: "1px solid var(--cds-border-subtle-01)", borderRadius: "0", width: "100%" }}>
@@ -306,7 +315,7 @@ function PlaceholderDashboard({
         <Upload size={24} style={{ margin: "auto" }} />
       </div>
       <h3 style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--cds-text-primary)", marginBottom: "0.5rem" }}>
-        Dasbor {ikuCode} Belum Terhubung
+        Dasbor {ikuCode} {hasConnection ? "Sudah Terhubung" : "Belum Terhubung"}
       </h3>
       <p style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cds-text-secondary)", marginBottom: "2rem", maxWidth: "560px", lineHeight: "1.4" }}>
         <strong>{title}</strong> — {description}
@@ -327,9 +336,9 @@ function PlaceholderDashboard({
         size="sm"
         renderIcon={Upload}
         onClick={onOpenUpload}
-        iconDescription={`Hubungkan Data ${ikuCode}`}
+        iconDescription={hasConnection ? `Ganti Koneksi ${ikuCode}` : `Hubungkan Data ${ikuCode}`}
       >
-        Hubungkan Data {ikuCode}
+        {hasConnection ? `Ganti Koneksi ${ikuCode}` : `Hubungkan Data ${ikuCode}`}
       </Button>
     </Tile>
   );
@@ -358,23 +367,17 @@ function MainContentSkeleton() {
 
 export default function DashboardPage() {
   const { kpis, chartData, rankingTop, rankingBottom, insights } = useDashboardMetrics();
-  const { rows, columns, normalizedRows, filters, setFilter, resetFilters, kpiThreshold, setKpiThreshold, activeDashboardTab } = useDashboardStore();
+  const { rows, columns, normalizedRows, kpiThreshold, setKpiThreshold, activeDashboardTab, parseStatus, errorMessage } = useDashboardStore();
 
-  const [showFilterBar, setShowFilterBar] = useState(true);
   const [selectedTile, setSelectedTile] = useState("kpi-1");
   const [isSwitchLoading, setIsSwitchLoading] = useState(false);
   const [isConnectExistingModalOpen, setIsConnectExistingModalOpen] = useState(false);
   const [existingConnectionOptions, setExistingConnectionOptions] = useState<ExistingConnectionOption[]>([]);
   const [selectedExistingConnection, setSelectedExistingConnection] = useState<ExistingConnectionOption | null>(null);
+  const [dashboardTabConnection, setDashboardTabConnection] = useState<DashboardTabConnection | null>(null);
   const previousTabRef = useRef(activeDashboardTab);
 
   const hasValidData = rows.length > 0 && chartData.length > 0;
-
-  useEffect(() => {
-    const handler = () => setShowFilterBar((prev) => !prev);
-    window.addEventListener("dashboard:toggle-filters", handler);
-    return () => window.removeEventListener("dashboard:toggle-filters", handler);
-  }, []);
 
   useEffect(() => {
     if (previousTabRef.current === activeDashboardTab) {
@@ -389,31 +392,85 @@ export default function DashboardPage() {
   }, [activeDashboardTab]);
 
   useEffect(() => {
-    const raw = localStorage.getItem("iku-sheet-connections");
-    if (!raw) {
-      setExistingConnectionOptions([]);
+    if (activeDashboardTab === "Overview" || activeDashboardTab === "IKU 003") {
+      setDashboardTabConnection(null);
       return;
     }
-    try {
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) {
-        setExistingConnectionOptions([]);
-        return;
+
+    const loadDashboardConnection = async () => {
+      try {
+        const rawUser = localStorage.getItem("iku-user-session");
+        const user = rawUser ? JSON.parse(rawUser) : null;
+        const userEmail = user?.email ? String(user.email) : "";
+        if (!userEmail) {
+          setDashboardTabConnection(null);
+          return;
+        }
+
+        const resp = await fetch(
+          `/api/dashboard-connections?userEmail=${encodeURIComponent(userEmail)}&dashboardTab=${encodeURIComponent(activeDashboardTab)}`,
+          { cache: "no-store" }
+        );
+        if (!resp.ok) {
+          setDashboardTabConnection(null);
+          return;
+        }
+
+        const json = await resp.json();
+        setDashboardTabConnection(json.connection ?? null);
+      } catch {
+        setDashboardTabConnection(null);
       }
-      const options = parsed.flatMap((conn: any) => {
-        const root = {
-          id: conn.id,
-          label: conn.type === "folder" ? `${conn.name} (Folder)` : `${conn.name} (Sheet)`,
-        };
-        const files = Array.isArray(conn.files)
-          ? conn.files.map((f: any) => ({ id: f.id, label: `${f.name} (${conn.name})` }))
-          : [];
-        return [root, ...files];
-      }) as ExistingConnectionOption[];
-      setExistingConnectionOptions(options);
-    } catch {
-      setExistingConnectionOptions([]);
-    }
+    };
+
+    void loadDashboardConnection();
+  }, [activeDashboardTab]);
+
+  useEffect(() => {
+    if (!isConnectExistingModalOpen) return;
+
+    const loadSourceOptions = async () => {
+      try {
+        const rawUser = localStorage.getItem("iku-user-session");
+        const user = rawUser ? JSON.parse(rawUser) : null;
+        const userEmail = user?.email ? String(user.email) : "";
+        if (!userEmail) {
+          setExistingConnectionOptions([]);
+          return;
+        }
+
+        const resp = await fetch(`/api/sources?userEmail=${encodeURIComponent(userEmail)}`, {
+          cache: "no-store"
+        });
+        if (!resp.ok) {
+          setExistingConnectionOptions([]);
+          return;
+        }
+
+        const json = await resp.json();
+        const parsed = Array.isArray(json.connections) ? json.connections : [];
+        if (!Array.isArray(parsed)) {
+          setExistingConnectionOptions([]);
+          return;
+        }
+
+        const options = parsed.flatMap((conn: any) => {
+          const root = {
+            id: conn.id,
+            label: conn.type === "folder" ? `${conn.name} (Folder)` : `${conn.name} (Sheet)`,
+          };
+          const files = Array.isArray(conn.files)
+            ? conn.files.map((f: any) => ({ id: f.id, label: `${f.name} (${conn.name})` }))
+            : [];
+          return [root, ...files];
+        }) as ExistingConnectionOption[];
+        setExistingConnectionOptions(options);
+      } catch {
+        setExistingConnectionOptions([]);
+      }
+    };
+
+    void loadSourceOptions();
   }, [isConnectExistingModalOpen]);
 
   const years = [...new Set(normalizedRows.map((r) => r.year).filter(Boolean))] as string[];
@@ -437,8 +494,32 @@ export default function DashboardPage() {
     setIsConnectExistingModalOpen(true);
   };
 
-  const handleConnectExistingSource = () => {
+  const handleConnectExistingSource = async () => {
     if (!selectedExistingConnection) return;
+
+    const rawUser = localStorage.getItem("iku-user-session");
+    const user = rawUser ? JSON.parse(rawUser) : null;
+    const userEmail = user?.email ? String(user.email) : "";
+    if (!userEmail) return;
+
+    if (activeDashboardTab !== "Overview" && activeDashboardTab !== "IKU 003") {
+      const resp = await fetch("/api/dashboard-connections", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userEmail,
+          dashboardTab: activeDashboardTab,
+          sourceId: selectedExistingConnection.id,
+          sourceLabel: selectedExistingConnection.label
+        })
+      });
+
+      if (resp.ok) {
+        const json = await resp.json();
+        setDashboardTabConnection(json.connection ?? null);
+      }
+    }
+
     window.dispatchEvent(
       new CustomEvent("app:select-source", {
         detail: { sourceId: selectedExistingConnection.id },
@@ -488,55 +569,6 @@ export default function DashboardPage() {
       {/* View 2: Detailed IKU 003 Dashboard */}
       {!isSwitchLoading && activeDashboardTab === "IKU 003" && (
         <>
-          {showFilterBar && (
-            <div className="dashboard-filter-inline">
-              <Dropdown
-                id="filter-year"
-                titleText=""
-                label="Filter: Tahun"
-                size="sm"
-                items={["Semua Tahun", ...years]}
-                selectedItem={filters.year || "Semua Tahun"}
-                onChange={({ selectedItem }) => setFilter("year", selectedItem === "Semua Tahun" ? "" : String(selectedItem || ""))}
-              />
-              <Dropdown
-                id="filter-faculty"
-                titleText=""
-                label="Filter: Fakultas"
-                size="sm"
-                items={["Semua Fakultas", ...faculties]}
-                selectedItem={filters.faculty || "Semua Fakultas"}
-                onChange={({ selectedItem }) => setFilter("faculty", selectedItem === "Semua Fakultas" ? "" : String(selectedItem || ""))}
-              />
-              <Dropdown
-                id="filter-degree"
-                titleText=""
-                label="Filter: Jenjang"
-                size="sm"
-                items={["Semua Jenjang", ...degrees]}
-                selectedItem={filters.degree || "Semua Jenjang"}
-                onChange={({ selectedItem }) => setFilter("degree", selectedItem === "Semua Jenjang" ? "" : String(selectedItem || ""))}
-              />
-              <Search
-                id="filter-search"
-                size="sm"
-                labelText="Search prodi"
-                placeholder="Search prodi"
-                value={filters.search}
-                onChange={(event) => setFilter("search", event.currentTarget.value)}
-              />
-              <Button kind="ghost" size="sm" onClick={resetFilters}>Reset</Button>
-            </div>
-          )}
-
-          {(filters.year || filters.faculty || filters.degree) && (
-            <div className="dashboard-filter-chips">
-              {filters.year && <Tag type="gray">Tahun: {filters.year}</Tag>}
-              {filters.faculty && <Tag type="gray">Fakultas: {filters.faculty}</Tag>}
-              {filters.degree && <Tag type="gray">Jenjang: {filters.degree}</Tag>}
-            </div>
-          )}
-
           {hasValidData && (
             <>
               <section className="dashboard-grid dashboard-grid--kpi">
@@ -575,7 +607,8 @@ export default function DashboardPage() {
                           return <TableHeader key={String(key ?? header.key)} {...rest}>{header.header}</TableHeader>;
                         })}</TableRow></TableHead><TableBody>{rows.map((row) => {
                           const rowProps = getRowProps({ row });
-                          return <TableRow {...rowProps}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.value}</TableCell>)}</TableRow>;
+                          const { key, ...rest } = rowProps;
+                          return <TableRow key={String(key ?? row.id)} {...rest}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.value}</TableCell>)}</TableRow>;
                         })}</TableBody></Table>
                       </TableContainer>
                     )}
@@ -591,7 +624,8 @@ export default function DashboardPage() {
                           return <TableHeader key={String(key ?? header.key)} {...rest}>{header.header}</TableHeader>;
                         })}</TableRow></TableHead><TableBody>{rows.map((row) => {
                           const rowProps = getRowProps({ row });
-                          return <TableRow {...rowProps}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.value}</TableCell>)}</TableRow>;
+                          const { key, ...rest } = rowProps;
+                          return <TableRow key={String(key ?? row.id)} {...rest}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.value}</TableCell>)}</TableRow>;
                         })}</TableBody></Table>
                       </TableContainer>
                     )}
@@ -613,23 +647,28 @@ export default function DashboardPage() {
         </>
       )}
 
+      {!isSwitchLoading && activeDashboardTab === "IKU 001" && (
+        <Iku001Dashboard rows={rows} parseStatus={parseStatus} errorMessage={errorMessage} />
+      )}
+
       {/* View 3: Other IKUs Placeholder Connect Portals */}
-      {!isSwitchLoading && activeDashboardTab !== "Overview" && activeDashboardTab !== "IKU 003" && ikuDetails[activeDashboardTab] && (
+      {!isSwitchLoading && activeDashboardTab !== "Overview" && activeDashboardTab !== "IKU 003" && activeDashboardTab !== "IKU 001" && ikuDetails[activeDashboardTab] && (
         <PlaceholderDashboard
           ikuCode={activeDashboardTab}
           title={ikuDetails[activeDashboardTab].title}
           description={ikuDetails[activeDashboardTab].description}
           onOpenUpload={openUploadModal}
+          hasConnection={Boolean(dashboardTabConnection)}
         />
       )}
 
       <Modal
         open={isConnectExistingModalOpen}
         modalHeading="Pilih Koneksi Data Eksisting"
-        primaryButtonText="Gunakan Koneksi"
+        primaryButtonText={dashboardTabConnection ? "Ganti Koneksi" : "Gunakan Koneksi"}
         secondaryButtonText="Batal"
         onRequestClose={() => setIsConnectExistingModalOpen(false)}
-        onRequestSubmit={handleConnectExistingSource}
+        onRequestSubmit={() => { void handleConnectExistingSource(); }}
         primaryButtonDisabled={!selectedExistingConnection}
         size="sm"
       >

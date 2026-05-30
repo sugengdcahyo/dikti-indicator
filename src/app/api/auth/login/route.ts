@@ -1,0 +1,29 @@
+import { NextResponse } from "next/server";
+import { authenticateCredentials } from "@/lib/auth-repo";
+
+export async function POST(request: Request) {
+  try {
+    const body = (await request.json()) as { email?: string; password?: string };
+    const email = (body.email || "").trim();
+    const password = body.password || "";
+
+    if (!email || !password) {
+      return NextResponse.json({ error: "Email dan password wajib diisi." }, { status: 400 });
+    }
+
+    const user = await authenticateCredentials({ email, password });
+    if (!user) {
+      return NextResponse.json(
+        { error: "Email atau sandi institusi salah." },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json({ user });
+  } catch {
+    return NextResponse.json(
+      { error: "Gagal memverifikasi login user dari database." },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,79 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const userEmail = (url.searchParams.get("userEmail") || "").trim().toLowerCase();
+    const dashboardTab = (url.searchParams.get("dashboardTab") || "").trim();
+
+    if (!userEmail) {
+      return NextResponse.json({ error: "userEmail wajib diisi." }, { status: 400 });
+    }
+
+    if (dashboardTab) {
+      const row = await prisma.dashboardTabConnection.findUnique({
+        where: {
+          userEmail_dashboardTab: {
+            userEmail,
+            dashboardTab
+          }
+        }
+      });
+      return NextResponse.json({ connection: row ?? null });
+    }
+
+    const rows = await prisma.dashboardTabConnection.findMany({
+      where: { userEmail },
+      orderBy: { dashboardTab: "asc" }
+    });
+
+    return NextResponse.json({ connections: rows });
+  } catch {
+    return NextResponse.json({ error: "Gagal memuat koneksi dashboard." }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const body = (await request.json()) as {
+      userEmail?: string;
+      dashboardTab?: string;
+      sourceId?: string;
+      sourceLabel?: string;
+    };
+
+    const userEmail = (body.userEmail || "").trim().toLowerCase();
+    const dashboardTab = (body.dashboardTab || "").trim();
+    const sourceId = (body.sourceId || "").trim();
+    const sourceLabel = (body.sourceLabel || "").trim();
+
+    if (!userEmail || !dashboardTab || !sourceId || !sourceLabel) {
+      return NextResponse.json({ error: "Data koneksi dashboard tidak lengkap." }, { status: 400 });
+    }
+
+    const upserted = await prisma.dashboardTabConnection.upsert({
+      where: {
+        userEmail_dashboardTab: {
+          userEmail,
+          dashboardTab
+        }
+      },
+      update: {
+        sourceId,
+        sourceLabel,
+        updatedAt: new Date()
+      },
+      create: {
+        userEmail,
+        dashboardTab,
+        sourceId,
+        sourceLabel
+      }
+    });
+
+    return NextResponse.json({ ok: true, connection: upserted });
+  } catch {
+    return NextResponse.json({ error: "Gagal menyimpan koneksi dashboard." }, { status: 500 });
+  }
+}

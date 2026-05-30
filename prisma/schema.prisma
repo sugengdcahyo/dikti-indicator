@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model AppUser {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  email        String   @unique
+  passwordHash String?  @map("password_hash")
+  resetTokenHash String? @map("reset_token_hash")
+  resetTokenExpiresAt DateTime? @map("reset_token_expires_at") @db.Timestamptz(6)
+  provider     String   @default("credentials")
+  avatarUrl    String?  @map("avatar_url")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([email], map: "app_users_email_idx")
+  @@index([resetTokenHash], map: "app_users_reset_token_hash_idx")
+  @@map("app_users")
+}
+
+model DataSourceConnection {
+  id        String   @id
+  userEmail String   @map("user_email")
+  type      String
+  name      String
+  url       String
+  files     Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userEmail], map: "data_source_connections_user_email_idx")
+  @@map("data_source_connections")
+}
+
+model DashboardTabConnection {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userEmail    String   @map("user_email")
+  dashboardTab String   @map("dashboard_tab")
+  sourceId     String   @map("source_id")
+  sourceLabel  String   @map("source_label")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userEmail, dashboardTab], map: "dashboard_tab_connections_user_email_dashboard_tab_key")
+  @@index([userEmail], map: "dashboard_tab_connections_user_email_idx")
+  @@map("dashboard_tab_connections")
+}

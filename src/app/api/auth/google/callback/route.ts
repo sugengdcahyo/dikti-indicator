@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { upsertGoogleUser } from "@/lib/auth-repo";
 
 type GoogleTokenResponse = {
   access_token?: string;
@@ -82,12 +83,11 @@ export async function GET(request: Request) {
     return errorRedirect(request, "Gagal mengambil profil Google.");
   }
 
-  const session = {
+  const session = await upsertGoogleUser({
     name: userInfo.name || userInfo.email.split("@")[0],
     email: userInfo.email,
-    avatarUrl: userInfo.picture || "",
-    provider: "google"
-  };
+    avatarUrl: userInfo.picture || ""
+  });
 
   const loginUrl = new URL("/login", getBaseUrl(request));
   loginUrl.searchParams.set("google_auth", "success");
