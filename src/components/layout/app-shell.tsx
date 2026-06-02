@@ -928,7 +928,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <footer className="app-footer">
-          <span>Varguard IKU Analytics</span>
+          <span>Dashboard DIKTI</span>
           <span>{new Date().getFullYear()} • Internal Data Platform</span>
         </footer>
       </Content>
