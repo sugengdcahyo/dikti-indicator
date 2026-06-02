@@ -26,7 +26,15 @@ function getPool() {
     return existingPool;
   }
 
-  const pool = globalForPrisma.prismaPool ?? new Pool({ connectionString: getConnectionString() });
+  const connectionString = getConnectionString();
+  const isNeon = connectionString.includes("neon.tech") || connectionString.includes("pooler");
+
+  const pool =
+    globalForPrisma.prismaPool ??
+    new Pool({
+      connectionString,
+      ssl: isNeon ? { rejectUnauthorized: false } : undefined
+    });
 
   if (process.env.NODE_ENV !== "production") {
     globalForPrisma.prismaPool = pool;
