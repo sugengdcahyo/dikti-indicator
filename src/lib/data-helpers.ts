@@ -94,6 +94,159 @@ export function generateMockIkuData(faculty: string, year: string): { rows: RawR
   return { rows, columns };
 }
 
+export function generateMockIku001Data(faculty: string): { rows: RawRow[]; columns: string[] } {
+  const columns = [
+    "Tahun",
+    "Fakultas",
+    "Jenjang",
+    "Program Studi",
+    "Mahasiswa Masuk",
+    "Lulus Tepat Waktu"
+  ];
+
+  let programs: { name: string; degree: string }[] = [];
+  if (faculty === "Teknik") {
+    programs = [
+      { name: "S1 Teknik Informatika", degree: "S1" },
+      { name: "S1 Teknik Elektro", degree: "S1" },
+      { name: "S1 Teknik Mesin", degree: "S1" },
+      { name: "S1 Teknik Sipil", degree: "S1" },
+      { name: "S1 Teknik Kimia", degree: "S1" },
+      { name: "S1 Teknik Industri", degree: "S1" }
+    ];
+  } else if (faculty === "MIPA") {
+    programs = [
+      { name: "S1 Matematika", degree: "S1" },
+      { name: "S1 Fisika", degree: "S1" },
+      { name: "S1 Kimia", degree: "S1" },
+      { name: "S1 Biologi", degree: "S1" },
+      { name: "S1 Statistika", degree: "S1" }
+    ];
+  } else if (faculty === "Ekonomi") {
+    programs = [
+      { name: "S1 Manajemen", degree: "S1" },
+      { name: "S1 Akuntansi", degree: "S1" },
+      { name: "S1 Ekonomi Pembangunan", degree: "S1" }
+    ];
+  } else {
+    programs = [
+      { name: "S1 Kedokteran", degree: "S1" },
+      { name: "S1 Farmasi", degree: "S1" },
+      { name: "S1 Psikologi", degree: "S1" }
+    ];
+  }
+
+  const rows: RawRow[] = [];
+  const years = ["2024", "2025", "2026"];
+
+  for (const yr of years) {
+    programs.forEach((prog, idx) => {
+      const seed = idx + faculty.length + Number(yr);
+      const studentsIn = 80 + (seed % 60);
+      const graduatesOnTime = Math.floor(studentsIn * (0.50 + ((seed * 7) % 8) * 0.04));
+
+      rows.push({
+        "Tahun": yr,
+        "Fakultas": faculty,
+        "Jenjang": prog.degree,
+        "Program Studi": prog.name,
+        "Mahasiswa Masuk": studentsIn,
+        "Lulus Tepat Waktu": graduatesOnTime
+      });
+    });
+  }
+
+  return { rows, columns };
+}
+
+export function generateMockIku002Data(faculty: string): { rows: RawRow[]; columns: string[] } {
+  const columns = [
+    "Tahun",
+    "Fakultas",
+    "Prodi",
+    "Jenjang",
+    "Total Lulusan",
+    "Responden TS",
+    "Bekerja <6 bulan >1.2 UMP",
+    "Bekerja <1 tahun >1.2 UMP",
+    "Bekerja <1 tahun <1.2 UMP",
+    "Lanjut Studi",
+    "Wirausaha",
+    "Belum Bekerja",
+    "Tidak Terlacak"
+  ];
+
+  let programs: { name: string; degree: string }[] = [];
+  if (faculty === "Teknik") {
+    programs = [
+      { name: "S1 Teknik Informatika", degree: "S1" },
+      { name: "S1 Teknik Elektro", degree: "S1" },
+      { name: "S1 Teknik Mesin", degree: "S1" },
+      { name: "S1 Teknik Sipil", degree: "S1" },
+      { name: "S1 Teknik Kimia", degree: "S1" },
+      { name: "S1 Teknik Industri", degree: "S1" }
+    ];
+  } else if (faculty === "MIPA") {
+    programs = [
+      { name: "S1 Matematika", degree: "S1" },
+      { name: "S1 Fisika", degree: "S1" },
+      { name: "S1 Kimia", degree: "S1" },
+      { name: "S1 Biologi", degree: "S1" },
+      { name: "S1 Statistika", degree: "S1" }
+    ];
+  } else if (faculty === "Ekonomi") {
+    programs = [
+      { name: "S1 Manajemen", degree: "S1" },
+      { name: "S1 Akuntansi", degree: "S1" },
+      { name: "S1 Ekonomi Pembangunan", degree: "S1" }
+    ];
+  } else {
+    programs = [
+      { name: "S1 Kedokteran", degree: "S1" },
+      { name: "S1 Farmasi", degree: "S1" },
+      { name: "S1 Psikologi", degree: "S1" }
+    ];
+  }
+
+  const rows: RawRow[] = [];
+  const years = ["2024", "2025", "2026"];
+
+  for (const yr of years) {
+    programs.forEach((prog, idx) => {
+      const seed = idx + faculty.length + Number(yr);
+      const totalLulusan = 60 + (seed % 40);
+      const respondentTs = Math.floor(totalLulusan * (0.75 + ((seed * 3) % 15) * 0.01));
+      
+      const work6mG = Math.floor(respondentTs * (0.35 + ((seed * 7) % 10) * 0.02));
+      const work1yG = Math.floor(respondentTs * (0.10 + ((seed * 2) % 5) * 0.02));
+      const work1yL = Math.floor(respondentTs * (0.05 + ((seed * 4) % 6) * 0.02));
+      const study = Math.floor(respondentTs * (0.08 + ((seed * 5) % 8) * 0.02));
+      const entrepreneur = Math.floor(respondentTs * (0.07 + ((seed * 9) % 7) * 0.02));
+      
+      const unemployed = Math.max(0, respondentTs - (work6mG + work1yG + work1yL + study + entrepreneur));
+      const untracked = totalLulusan - respondentTs;
+
+      rows.push({
+        "Tahun": yr,
+        "Fakultas": faculty,
+        "Prodi": prog.name,
+        "Jenjang": prog.degree,
+        "Total Lulusan": totalLulusan,
+        "Responden TS": respondentTs,
+        "Bekerja <6 bulan >1.2 UMP": work6mG,
+        "Bekerja <1 tahun >1.2 UMP": work1yG,
+        "Bekerja <1 tahun <1.2 UMP": work1yL,
+        "Lanjut Studi": study,
+        "Wirausaha": entrepreneur,
+        "Belum Bekerja": unemployed,
+        "Tidak Terlacak": untracked
+      });
+    });
+  }
+
+  return { rows, columns };
+}
+
 export function normalizeRows(rows: RawRow[]): NormalizedRow[] {
   return rows.map((row) => {
     const normalized: NormalizedRow = { __raw: row };

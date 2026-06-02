@@ -94,7 +94,7 @@ function DashboardPageContent() {
 
   const dashboardTabConnection = useMemo(
     () =>
-      activeDashboardTab === "Overview" || activeDashboardTab === "IKU 003"
+      activeDashboardTab === "Overview"
         ? null
         : dashboardConnections.find((connection) => connection.dashboardTab === activeDashboardTab) ?? null,
     [activeDashboardTab, dashboardConnections]
@@ -104,8 +104,7 @@ function DashboardPageContent() {
   const requestedDashboardTab = (dashboardMenuItems as readonly string[]).includes(requestedTab) ? requestedTab : "";
   const requiresDashboardConnectionResolution =
     requestedDashboardTab !== "" &&
-    requestedDashboardTab !== "Overview" &&
-    requestedDashboardTab !== "IKU 003";
+    requestedDashboardTab !== "Overview";
   const shouldShowDashboardInitialLoading =
     requestedDashboardTab !== "" &&
     requestedDashboardTab !== "Overview" &&
@@ -181,7 +180,7 @@ function DashboardPageContent() {
   const handleConnectExistingSource = async () => {
     if (!selectedExistingConnection || !userEmail) return;
 
-    if (activeDashboardTab !== "Overview" && activeDashboardTab !== "IKU 003") {
+    if (activeDashboardTab !== "Overview") {
       const resp = await fetch("/api/dashboard-connections", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -211,7 +210,7 @@ function DashboardPageContent() {
     setIsConnectExistingModalOpen(false);
   };
   const activeIkuDetail =
-    activeDashboardTab !== "Overview" && activeDashboardTab !== "IKU 003"
+    activeDashboardTab !== "Overview"
       ? ikuDashboardDetails[activeDashboardTab as keyof typeof ikuDashboardDetails]
       : undefined;
 
@@ -233,7 +232,7 @@ function DashboardPageContent() {
       )}
 
       {/* View 2: Detailed IKU 003 Dashboard */}
-      {!isSwitchLoading && !shouldShowDashboardInitialLoading && activeDashboardTab === "IKU 003" && (
+      {!isSwitchLoading && !shouldShowDashboardInitialLoading && activeDashboardTab === "IKU 003" && Boolean(dashboardTabConnection) && (
         <>
           {hasValidData && (
             <MemoIku003DashboardView
@@ -243,8 +242,6 @@ function DashboardPageContent() {
               rankingTopRows={rankingTopRows}
               rankingBottomRows={rankingBottomRows}
               insights={insights}
-              selectedTile={selectedTile}
-              onSelectTile={handleSelectTile}
             />
           )}
         </>
@@ -259,7 +256,7 @@ function DashboardPageContent() {
       )}
 
       {/* View 3: Other IKUs Placeholder Connect Portals */}
-      {!isSwitchLoading && !shouldShowDashboardInitialLoading && activeDashboardTab !== "Overview" && activeDashboardTab !== "IKU 003" && !(activeDashboardTab === "IKU 001" && Boolean(dashboardTabConnection)) && !(activeDashboardTab === "IKU 002" && Boolean(dashboardTabConnection)) && activeIkuDetail && (
+      {!isSwitchLoading && !shouldShowDashboardInitialLoading && activeDashboardTab !== "Overview" && !(activeDashboardTab === "IKU 001" && Boolean(dashboardTabConnection)) && !(activeDashboardTab === "IKU 002" && Boolean(dashboardTabConnection)) && !(activeDashboardTab === "IKU 003" && Boolean(dashboardTabConnection)) && activeIkuDetail && (
         <MemoPlaceholderDashboard
           ikuCode={activeDashboardTab}
           title={activeIkuDetail.title}

@@ -1,12 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
 import {
-  Button,
   DataTable,
   InlineNotification,
-  OverflowMenu,
-  OverflowMenuItem,
   Table,
   TableBody,
   TableCell,
@@ -44,7 +40,7 @@ const CHART_LEGEND_STYLE = { color: "#161616", fontWeight: 600 };
 const tableHeaders = [
   { key: "study_program", header: "Program Studi" },
   { key: "faculty", header: "Fakultas" },
-  { key: "iku_percentage", header: "IKU003 (%)" },
+  { key: "iku_percentage", header: "IKU 003 (%)" },
 ];
 
 type TableRowItem = {
@@ -125,46 +121,6 @@ function ChartTooltip({
   );
 }
 
-function WorkspaceTile({
-  title,
-  tileId,
-  selectedTile,
-  onSelect,
-  children,
-}: {
-  title: string;
-  tileId: string;
-  selectedTile: string;
-  onSelect: (id: string) => void;
-  children: ReactNode;
-}) {
-  return (
-    <Tile
-      className={`workspace-tile${selectedTile === tileId ? " is-selected" : ""}`}
-      onClick={() => onSelect(tileId)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect(tileId);
-        }
-      }}
-    >
-      <div className="workspace-tile__header">
-        <h4>{title}</h4>
-        <OverflowMenu size="sm" ariaLabel={`${title} options`} onClick={(event) => event.stopPropagation()}>
-          <OverflowMenuItem itemText="Configure" />
-          <OverflowMenuItem itemText="Duplicate" />
-          <OverflowMenuItem itemText="Export" />
-          <OverflowMenuItem itemText="Remove" hasDivider isDelete />
-        </OverflowMenu>
-      </div>
-      <div className="workspace-tile__body">{children}</div>
-    </Tile>
-  );
-}
-
 export function Iku003DashboardView({
   kpis,
   chartData,
@@ -172,107 +128,98 @@ export function Iku003DashboardView({
   rankingTopRows,
   rankingBottomRows,
   insights,
-  selectedTile,
-  onSelectTile,
-}: Props) {
+}: Omit<Props, "selectedTile" | "onSelectTile">) {
   return (
-    <>
-      <section className="dashboard-grid dashboard-grid--kpi">
-        <WorkspaceTile title="TOTAL PROGRAM STUDI" tileId="kpi-1" selectedTile={selectedTile} onSelect={onSelectTile}>
-          <div className="workspace-kpi-value">{kpis.totalStudyProgram}</div>
-        </WorkspaceTile>
-        <WorkspaceTile title="TOTAL FAKULTAS" tileId="kpi-2" selectedTile={selectedTile} onSelect={onSelectTile}>
-          <div className="workspace-kpi-value">{kpis.totalFaculty}</div>
-        </WorkspaceTile>
-        <WorkspaceTile title="TOTAL DOSEN TETAP" tileId="kpi-3" selectedTile={selectedTile} onSelect={onSelectTile}>
-          <div className="workspace-kpi-value">{kpis.totalLecturers}</div>
-        </WorkspaceTile>
-        <WorkspaceTile title="RATA-RATA IKU003" tileId="kpi-4" selectedTile={selectedTile} onSelect={onSelectTile}>
-          <div className="workspace-kpi-value">{kpis.avgIkuPercentage.toFixed(2)}%</div>
-        </WorkspaceTile>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%" }}>
+      {/* KPI Summary Tiles */}
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
+        <Tile>
+          <div className="iku-kpi-tile__label">Total Program Studi</div>
+          <div className="iku-kpi-tile__value">{kpis.totalStudyProgram}</div>
+        </Tile>
+        <Tile>
+          <div className="iku-kpi-tile__label">Total Fakultas</div>
+          <div className="iku-kpi-tile__value">{kpis.totalFaculty}</div>
+        </Tile>
+        <Tile>
+          <div className="iku-kpi-tile__label">Total Dosen Tetap</div>
+          <div className="iku-kpi-tile__value">{kpis.totalLecturers}</div>
+        </Tile>
+        <Tile>
+          <div className="iku-kpi-tile__label">Rata-rata IKU 003</div>
+          <div className="iku-kpi-tile__value" style={{ color: "#0f62fe" }}>
+            {kpis.avgIkuPercentage.toFixed(2)}%
+          </div>
+        </Tile>
       </section>
 
-      <section className="dashboard-grid dashboard-grid--two-col">
-        <WorkspaceTile title="Persentase IKU per Prodi" tileId="chart-1" selectedTile={selectedTile} onSelect={onSelectTile}>
-          <ResponsiveContainer width="100%" height={320}>
+      {/* Main Charts */}
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "1rem" }}>
+        <Tile style={{ minHeight: "320px" }}>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Persentase Capaian IKU per Program Studi</h4>
+          <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
               <XAxis dataKey="study_program" hide />
-              <YAxis />
-              <Tooltip
-                content={<ChartTooltip />}
-                wrapperStyle={{ opacity: 1 }}
-                contentStyle={CHART_TOOLTIP_STYLE}
-                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-              />
-              <Bar dataKey="iku_percentage" fill={CDS_COLORS[0]} />
+              <YAxis domain={[0, 100]} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar dataKey="iku_percentage" fill={CDS_COLORS[0]} name="Capaian IKU (%)" />
             </BarChart>
           </ResponsiveContainer>
-        </WorkspaceTile>
-        <WorkspaceTile title="Distribusi IKU per Fakultas" tileId="chart-2" selectedTile={selectedTile} onSelect={onSelectTile}>
-          <ResponsiveContainer width="100%" height={320}>
+        </Tile>
+
+        <Tile style={{ minHeight: "320px" }}>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Distribusi Capaian IKU per Fakultas</h4>
+          <ResponsiveContainer width="100%" height={260}>
             <PieChart>
-              <Pie data={pieData} dataKey="total" nameKey="faculty" innerRadius={80} outerRadius={120}>
+              <Pie data={pieData} dataKey="total" nameKey="faculty" innerRadius={60} outerRadius={90} paddingAngle={3}>
                 {pieData.map((_, i) => (
                   <Cell key={i} fill={CDS_COLORS[i % CDS_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip
-                content={<ChartTooltip />}
-                wrapperStyle={{ opacity: 1 }}
-                contentStyle={CHART_TOOLTIP_STYLE}
-                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-              />
+              <Tooltip content={<ChartTooltip />} />
               <Legend verticalAlign="bottom" wrapperStyle={CHART_LEGEND_STYLE} />
             </PieChart>
           </ResponsiveContainer>
-        </WorkspaceTile>
+        </Tile>
       </section>
 
-      <section className="dashboard-grid dashboard-grid--two-col">
-        <WorkspaceTile title="Komponen IKU003" tileId="chart-3" selectedTile={selectedTile} onSelect={onSelectTile}>
-          <ResponsiveContainer width="100%" height={320}>
+      {/* Stacked Component Charts & Total Lecturers */}
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "1rem" }}>
+        <Tile style={{ minHeight: "320px" }}>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Komponen Kategori Penunjang IKU 003</h4>
+          <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
               <XAxis dataKey="study_program" hide />
               <YAxis />
-              <Tooltip
-                content={<ChartTooltip />}
-                wrapperStyle={{ opacity: 1 }}
-                contentStyle={CHART_TOOLTIP_STYLE}
-                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-              />
+              <Tooltip content={<ChartTooltip />} />
               <Legend verticalAlign="top" wrapperStyle={CHART_LEGEND_STYLE} />
-              <Bar dataKey="iku_017" stackId="stack" fill={CDS_COLORS[0]} />
-              <Bar dataKey="iku_018" stackId="stack" fill={CDS_COLORS[1]} />
-              <Bar dataKey="coaching_achievement" stackId="stack" fill={CDS_COLORS[2]} />
+              <Bar dataKey="iku_017" stackId="stack" fill={CDS_COLORS[0]} name="IK-017 (Tridharma)" />
+              <Bar dataKey="iku_018" stackId="stack" fill={CDS_COLORS[1]} name="IK-018 (Praktisi)" />
+              <Bar dataKey="coaching_achievement" stackId="stack" fill={CDS_COLORS[2]} name="Membina Mahasiswa" />
             </BarChart>
           </ResponsiveContainer>
-        </WorkspaceTile>
-        <WorkspaceTile title="Total Dosen per Program" tileId="chart-4" selectedTile={selectedTile} onSelect={onSelectTile}>
-          <ResponsiveContainer width="100%" height={320}>
+        </Tile>
+
+        <Tile style={{ minHeight: "320px" }}>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Total Dosen Tetap per Program Studi</h4>
+          <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
               <XAxis dataKey="study_program" hide />
               <YAxis />
-              <Tooltip
-                content={<ChartTooltip />}
-                wrapperStyle={{ opacity: 1 }}
-                contentStyle={CHART_TOOLTIP_STYLE}
-                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-              />
-              <Bar dataKey="total_lecturers" fill={CDS_COLORS[3]} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar dataKey="total_lecturers" fill={CDS_COLORS[3]} name="Jumlah Dosen" />
             </BarChart>
           </ResponsiveContainer>
-        </WorkspaceTile>
+        </Tile>
       </section>
 
-      <section className="dashboard-grid dashboard-grid--two-col">
-        <WorkspaceTile title="Top 10 Prodi" tileId="table-1" selectedTile={selectedTile} onSelect={onSelectTile}>
+      {/* Top 10 and Bottom 10 Program Study Tables */}
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "1rem" }}>
+        <Tile>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Top 10 Program Studi Terbaik</h4>
           <DataTable rows={rankingTopRows} headers={tableHeaders}>
             {({ rows, headers, getHeaderProps, getRowProps, getTableContainerProps, getTableProps }) => (
               <TableContainer {...getTableContainerProps()}>
@@ -307,8 +254,10 @@ export function Iku003DashboardView({
               </TableContainer>
             )}
           </DataTable>
-        </WorkspaceTile>
-        <WorkspaceTile title="Bottom 10 Prodi" tileId="table-2" selectedTile={selectedTile} onSelect={onSelectTile}>
+        </Tile>
+
+        <Tile>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Bottom 10 Program Studi Terendah</h4>
           <DataTable rows={rankingBottomRows} headers={tableHeaders}>
             {({ rows, headers, getHeaderProps, getRowProps, getTableContainerProps, getTableProps }) => (
               <TableContainer {...getTableContainerProps()}>
@@ -343,18 +292,19 @@ export function Iku003DashboardView({
               </TableContainer>
             )}
           </DataTable>
-        </WorkspaceTile>
+        </Tile>
       </section>
 
+      {/* Automated Insight Notification */}
       <section style={{ width: "100%" }}>
         <InlineNotification
           kind="info"
-          title="Insight Ringkas"
-          subtitle={`Fakultas terbaik: ${insights.topFaculty?.faculty ?? "-"}. Prodi terbaik: ${insights.topProgram?.study_program ?? "-"}. Prodi terendah: ${insights.bottomProgram?.study_program ?? "-"}. Di bawah target ${insights.threshold}%: ${insights.belowThreshold.length} prodi.`}
+          title="Analisis Insight Ringkas IKU 003"
+          subtitle={`Fakultas dengan rata-rata kinerja terbaik diraih oleh ${insights.topFaculty?.faculty ?? "-"}. Program Studi dengan capaian tertinggi diraih oleh ${insights.topProgram?.study_program ?? "-"}, sedangkan capaian terendah berada pada ${insights.bottomProgram?.study_program ?? "-"}. Sebanyak ${insights.belowThreshold.length} program studi masih berada di bawah target keberhasilan ${insights.threshold}%.`}
           lowContrast
           hideCloseButton
         />
       </section>
-    </>
+    </div>
   );
 }

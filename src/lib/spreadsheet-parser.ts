@@ -1,4 +1,5 @@
-import { generateMockIkuData } from "@/lib/data-helpers";
+import { generateMockIkuData, generateMockIku001Data, generateMockIku002Data } from "@/lib/data-helpers";
+import { useDashboardStore } from "@/store/dashboard-store";
 import type { RawRow } from "@/types/data";
 
 type ParsedSpreadsheet = {
@@ -33,16 +34,28 @@ export async function parseSpreadsheetFile(file: File): Promise<ParsedSpreadshee
   return parseSpreadsheetBuffer(buffer);
 }
 
+function generateMockDataForTab(faculty: string, tab: string) {
+  if (tab === "IKU 001") {
+    return generateMockIku001Data(faculty);
+  }
+  if (tab === "IKU 002") {
+    return generateMockIku002Data(faculty);
+  }
+  return generateMockIkuData(faculty, "2026"); // Default to IKU 003
+}
+
 export async function parseSpreadsheetUrl(url: string): Promise<ParsedSpreadsheet> {
-  const trimmed = url.trim();
-  if (trimmed === "drive-folder-demo-teknik" || trimmed.endsWith("teknik")) {
-    return generateMockIkuData("Teknik", "2026");
+  const trimmed = url.trim().toLowerCase();
+  const activeTab = useDashboardStore.getState().activeDashboardTab;
+
+  if (trimmed === "drive-folder-demo-teknik" || trimmed.includes("teknik")) {
+    return generateMockDataForTab("Teknik", activeTab);
   }
-  if (trimmed === "drive-folder-demo-mipa" || trimmed.endsWith("mipa")) {
-    return generateMockIkuData("MIPA", "2026");
+  if (trimmed === "drive-folder-demo-mipa" || trimmed.includes("mipa")) {
+    return generateMockDataForTab("MIPA", activeTab);
   }
-  if (trimmed === "drive-folder-demo-ekonomi" || trimmed.endsWith("ekonomi")) {
-    return generateMockIkuData("Ekonomi", "2026");
+  if (trimmed === "drive-folder-demo-ekonomi" || trimmed.includes("ekonomi")) {
+    return generateMockDataForTab("Ekonomi", activeTab);
   }
 
   const finalUrl = toGoogleSheetExportUrl(trimmed);

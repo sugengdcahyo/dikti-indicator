@@ -11,7 +11,7 @@ export const dashboardMenuItems = [
 ] as const;
 
 export type DashboardMenuItem = (typeof dashboardMenuItems)[number];
-export type MappedDashboardTab = Exclude<DashboardMenuItem, "Overview" | "IKU 003">;
+export type MappedDashboardTab = Exclude<DashboardMenuItem, "Overview">;
 
 export type DashboardTabConnection = {
   userEmail: string;
@@ -39,6 +39,11 @@ export const ikuDashboardDetails: Record<MappedDashboardTab, { title: string; de
     title: "Mahasiswa Mendapatkan Pengalaman di Luar Kampus",
     description:
       "Mengukur persentase mahasiswa aktif yang menghabiskan minimal 20 SKS di luar prodi asal melalui program MBKM seperti magang industri, proyek desa, wirausaha, mengajar di sekolah, pertukaran pelajar, penelitian, atau berprestasi di tingkat nasional/internasional.",
+  },
+  "IKU 003": {
+    title: "Dosen Berkegiatan di Luar Kampus (Keaktifan Dosen Tetap)",
+    description:
+      "Mengukur persentase dosen tetap yang melaksanakan kegiatan tridharma di luar kampus (mengajar, membina mahasiswa, meneliti) atau praktisi industri yang mengajar di dalam kampus.",
   },
   "IKU 005": {
     title: "Hasil Kerja Dosen Digunakan Oleh Masyarakat",

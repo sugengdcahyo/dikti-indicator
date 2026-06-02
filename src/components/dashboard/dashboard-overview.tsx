@@ -36,9 +36,9 @@ export function DashboardOverview({ kpis, hasValidData, threshold, onOpenUpload,
   const connectionsByTab = new Map(dashboardConnections.map((connection) => [connection.dashboardTab, connection]));
   const overviewRows = overviewDashboardItems.map((item) => {
     const mappedConnection = connectionsByTab.get(item.tab);
-    const isConnected = item.tab === "IKU 003" ? hasValidData : Boolean(mappedConnection);
-    const sourceLabel = item.tab === "IKU 003" ? (hasValidData ? "Dataset aktif" : "") : mappedConnection?.sourceLabel || "";
-    const metricValue = item.tab === "IKU 003" && hasValidData ? `${kpis.avgIkuPercentage.toFixed(2)}%` : "-";
+    const isConnected = Boolean(mappedConnection);
+    const sourceLabel = mappedConnection?.sourceLabel || "";
+    const metricValue = item.tab === "IKU 003" && isConnected && hasValidData ? `${kpis.avgIkuPercentage.toFixed(2)}%` : "-";
 
     return {
       ...item,
