@@ -15,6 +15,7 @@ import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
 import { DashboardPlaceholder } from "@/components/dashboard/dashboard-placeholder";
 import { Iku003DashboardView } from "@/components/dashboard/dashboard-iku003-view";
 import { Iku001Dashboard, Iku001Skeleton } from "@/components/dashboard/iku001-dashboard";
+import { Iku002Dashboard, Iku002Skeleton } from "@/components/dashboard/dashboard-iku002-view";
 
 type ExistingConnectionOption = { id: string; label: string };
 
@@ -113,7 +114,13 @@ function DashboardPageContent() {
         requiresDashboardConnectionResolution &&
         !areDashboardConnectionsReady));
   const initialDashboardLoadingFallback =
-    requestedDashboardTab === "IKU 001" ? <Iku001Skeleton /> : <MainContentSkeleton />;
+    requestedDashboardTab === "IKU 001" ? (
+      <Iku001Skeleton />
+    ) : requestedDashboardTab === "IKU 002" ? (
+      <Iku002Skeleton />
+    ) : (
+      <MainContentSkeleton />
+    );
 
   const existingConnectionOptions = useMemo(
     () =>
@@ -247,8 +254,12 @@ function DashboardPageContent() {
         <Iku001Dashboard rows={rows} parseStatus={parseStatus} errorMessage={errorMessage} />
       )}
 
+      {!isSwitchLoading && !shouldShowDashboardInitialLoading && activeDashboardTab === "IKU 002" && Boolean(dashboardTabConnection) && (
+        <Iku002Dashboard rows={rows} parseStatus={parseStatus} errorMessage={errorMessage} />
+      )}
+
       {/* View 3: Other IKUs Placeholder Connect Portals */}
-      {!isSwitchLoading && !shouldShowDashboardInitialLoading && activeDashboardTab !== "Overview" && activeDashboardTab !== "IKU 003" && !(activeDashboardTab === "IKU 001" && Boolean(dashboardTabConnection)) && activeIkuDetail && (
+      {!isSwitchLoading && !shouldShowDashboardInitialLoading && activeDashboardTab !== "Overview" && activeDashboardTab !== "IKU 003" && !(activeDashboardTab === "IKU 001" && Boolean(dashboardTabConnection)) && !(activeDashboardTab === "IKU 002" && Boolean(dashboardTabConnection)) && activeIkuDetail && (
         <MemoPlaceholderDashboard
           ikuCode={activeDashboardTab}
           title={activeIkuDetail.title}
