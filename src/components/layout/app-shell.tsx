@@ -518,10 +518,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <Header aria-label="Varguard IKU Analytics">
+      <Header aria-label="Dashboard DIKTI">
         <SkipToContent />
-        <HeaderName href="/dashboard" prefix="Varguard">
-          IKU Analytics
+        <HeaderName href="/dashboard" prefix="Dashboard">
+          DIKTI
         </HeaderName>
 
         <div className="app-header-search">
