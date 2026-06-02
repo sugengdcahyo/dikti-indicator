@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import useSWR from "swr";
 import {
   InlineNotification,
   Tile,
@@ -130,15 +129,10 @@ export function Iku001Skeleton() {
 }
 
 export function Iku001Dashboard({ rows, parseStatus, errorMessage }: Props) {
-  const { data: sheetRows, isLoading } = useSWR(["iku001-source", rows.length], async () => rows, {
-    revalidateOnFocus: false,
-    keepPreviousData: true
-  });
-
   const parsed = useMemo(() => {
-    if (!sheetRows || sheetRows.length === 0) return [] as ParsedRow[];
+    if (!rows.length) return [] as ParsedRow[];
 
-    const cols = Object.keys(sheetRows[0]);
+    const cols = Object.keys(rows[0]);
     const yearCol = findColumn(cols, [/^tahun$/, /year/]);
     const facCol = findColumn(cols, [/fakultas/, /faculty/]);
     const degreeCol = findColumn(cols, [/jenjang/, /degree/]);
@@ -148,7 +142,7 @@ export function Iku001Dashboard({ rows, parseStatus, errorMessage }: Props) {
 
     if (!yearCol || !facCol || !degreeCol || !prodiCol || !inCol || !gradCol) return [];
 
-    return sheetRows.map((row) => ({
+    return rows.map((row) => ({
       year: toStr(row[yearCol]),
       faculty: toStr(row[facCol]),
       degree: toStr(row[degreeCol]),
@@ -156,7 +150,7 @@ export function Iku001Dashboard({ rows, parseStatus, errorMessage }: Props) {
       studentsIn: toNum(row[inCol]),
       graduatesOnTime: toNum(row[gradCol])
     })).filter((r) => r.year && r.faculty && r.studyProgram);
-  }, [sheetRows]);
+  }, [rows]);
 
   const [year, setYear] = useState("");
   const [faculty, setFaculty] = useState("");
@@ -291,7 +285,7 @@ export function Iku001Dashboard({ rows, parseStatus, errorMessage }: Props) {
 
   const rowsTable = useMemo(() => prodiPerf.map((p, i) => ({ id: `prodi-${i}`, studyProgram: p.studyProgram, faculty: p.faculty, degree: p.degree, studentsIn: String(p.in), graduatesOnTime: String(p.grad), iku: `${p.iku.toFixed(2)}%` })), [prodiPerf]);
 
-  if (parseStatus === "loading" || isLoading) return <Iku001Skeleton />;
+  if (parseStatus === "loading") return <Iku001Skeleton />;
 
   if (parseStatus === "error") {
     return (
