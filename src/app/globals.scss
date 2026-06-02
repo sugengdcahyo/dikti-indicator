@@ -47,9 +47,9 @@ html.dark {
   --app-header-border: #393939;
   --app-header-action-hover: #353535;
 
-  // Map Carbon Design System typography custom properties to Next.js Google Fonts
-  --cds-font-family-sans: var(--font-ibm-plex-sans), "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --cds-font-family-mono: var(--font-ibm-plex-mono), "IBM Plex Mono", monospace;
+  // Keep typography deterministic during Docker builds without remote font fetches.
+  --cds-font-family-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --cds-font-family-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 // Force the loaded Next.js font on all Carbon components & elements
