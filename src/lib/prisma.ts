@@ -2,27 +2,48 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const globalForPrisma = globalThis as unknown as {
+  prisma?: PrismaClient;
+  prismaPool?: Pool;
+};
+
 let prismaClient: PrismaClient | undefined;
 
-function getPrismaClient() {
-  if (prismaClient) {
-    return prismaClient;
-  }
-
+function getConnectionString() {
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
     throw new Error("DATABASE_URL belum dikonfigurasi.");
   }
 
-  const pool = new Pool({ connectionString });
-  const adapter = new PrismaPg(pool);
+  return connectionString;
+}
+
+function getPool() {
+  const existingPool = globalForPrisma.prismaPool;
+
+  if (existingPool) {
+    return existingPool;
+  }
+
+  const pool = globalForPrisma.prismaPool ?? new Pool({ connectionString: getConnectionString() });
+
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prismaPool = pool;
+  }
+
+  return pool;
+}
+
+function getPrismaClient() {
+  if (prismaClient) {
+    return prismaClient;
+  }
 
   prismaClient =
     globalForPrisma.prisma ??
     new PrismaClient({
-      adapter,
+      adapter: new PrismaPg(getPool()),
       log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"]
     });
 

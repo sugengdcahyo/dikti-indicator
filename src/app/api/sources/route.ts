@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SheetConnection } from "@/lib/source-connection-types";
 
@@ -19,6 +18,16 @@ type RawConnectionInput = {
   url?: unknown;
   files?: unknown;
 };
+
+type SourceTransactionClient = Pick<typeof prisma, "dataSourceConnection">;
+
+const dataSourceConnectionSelect = {
+  id: true,
+  type: true,
+  name: true,
+  url: true,
+  files: true
+} as const;
 
 function isRawConnectionFile(value: unknown): value is RawConnectionFile {
   return Boolean(
@@ -53,6 +62,44 @@ function normalizeConnection(input: RawConnectionInput | null | undefined): Shee
   };
 }
 
+function filesEqual(left?: SheetConnection["files"], right?: SheetConnection["files"]) {
+  if (!left?.length && !right?.length) return true;
+  if (!left || !right || left.length !== right.length) return false;
+
+  return left.every((file, index) => {
+    const other = right[index];
+    return other && file.id === other.id && file.name === other.name && file.url === other.url;
+  });
+}
+
+function connectionsEqual(
+  existing: Pick<SheetConnection, "type" | "name" | "url" | "files">,
+  incoming: SheetConnection
+) {
+  return (
+    existing.type === incoming.type &&
+    existing.name === incoming.name &&
+    existing.url === incoming.url &&
+    filesEqual(existing.files, incoming.files)
+  );
+}
+
+function toSheetConnection(row: {
+  id: string;
+  type: string;
+  name: string;
+  url: string;
+  files: unknown;
+}): SheetConnection | null {
+  return normalizeConnection({
+    id: row.id,
+    type: row.type,
+    name: row.name,
+    url: row.url,
+    files: Array.isArray(row.files) ? row.files : undefined
+  });
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -64,19 +111,12 @@ export async function GET(request: Request) {
 
     const rows = await prisma.dataSourceConnection.findMany({
       where: { userEmail },
+      select: dataSourceConnectionSelect,
       orderBy: { createdAt: "asc" }
     });
 
     const connections: SheetConnection[] = rows
-      .map((row: { id: string; type: string; name: string; url: string; files: unknown }) =>
-        normalizeConnection({
-          id: String(row.id ?? ""),
-          type: String(row.type ?? ""),
-          name: String(row.name ?? ""),
-          url: String(row.url ?? ""),
-          files: Array.isArray(row.files) ? row.files : undefined
-        })
-      )
+      .map((row) => toSheetConnection(row))
       .filter((item: SheetConnection | null): item is SheetConnection => Boolean(item));
 
     return NextResponse.json({ connections });
@@ -103,20 +143,70 @@ export async function POST(request: Request) {
       .map((item) => normalizeConnection(item))
       .filter((item: SheetConnection | null): item is SheetConnection => Boolean(item));
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.dataSourceConnection.deleteMany({ where: { userEmail } });
+    await prisma.$transaction(async (tx: SourceTransactionClient) => {
+      const existingRows = await tx.dataSourceConnection.findMany({
+        where: { userEmail },
+        select: dataSourceConnectionSelect
+      });
 
-      if (connections.length > 0) {
-        await tx.dataSourceConnection.createMany({
-          data: connections.map((conn) => ({
-            id: conn.id,
+      const existingConnections = new Map(
+        existingRows
+          .map((row) => toSheetConnection(row))
+          .filter((item: SheetConnection | null): item is SheetConnection => Boolean(item))
+          .map((connection) => [connection.id, connection])
+      );
+
+      const incomingIds = new Set(connections.map((connection) => connection.id));
+      const deleteIds = existingRows
+        .map((row) => row.id)
+        .filter((id) => !incomingIds.has(id));
+
+      const createData = connections
+        .filter((connection) => !existingConnections.has(connection.id))
+        .map((connection) => ({
+          id: connection.id,
+          userEmail,
+          type: connection.type,
+          name: connection.name,
+          url: connection.url,
+          files: connection.files
+        }));
+
+      const updateOperations = connections
+        .filter((connection) => {
+          const existing = existingConnections.get(connection.id);
+          return existing && !connectionsEqual(existing, connection);
+        })
+        .map((connection) =>
+          tx.dataSourceConnection.update({
+            where: { id: connection.id },
+            data: {
+              type: connection.type,
+              name: connection.name,
+              url: connection.url,
+              files: connection.files,
+              updatedAt: new Date()
+            }
+          })
+        );
+
+      if (deleteIds.length > 0) {
+        await tx.dataSourceConnection.deleteMany({
+          where: {
             userEmail,
-            type: conn.type,
-            name: conn.name,
-            url: conn.url,
-            files: conn.files
-          }))
+            id: { in: deleteIds }
+          }
         });
+      }
+
+      if (createData.length > 0) {
+        await tx.dataSourceConnection.createMany({
+          data: createData
+        });
+      }
+
+      if (updateOperations.length > 0) {
+        await Promise.all(updateOperations);
       }
     });
 

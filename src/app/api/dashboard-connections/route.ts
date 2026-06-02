@@ -4,6 +4,16 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+const dashboardConnectionSelect = {
+  id: true,
+  userEmail: true,
+  dashboardTab: true,
+  sourceId: true,
+  sourceLabel: true,
+  createdAt: true,
+  updatedAt: true
+} as const;
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -16,6 +26,7 @@ export async function GET(request: Request) {
 
     if (dashboardTab) {
       const row = await prisma.dashboardTabConnection.findUnique({
+        select: dashboardConnectionSelect,
         where: {
           userEmail_dashboardTab: {
             userEmail,
@@ -27,6 +38,7 @@ export async function GET(request: Request) {
     }
 
     const rows = await prisma.dashboardTabConnection.findMany({
+      select: dashboardConnectionSelect,
       where: { userEmail },
       orderBy: { dashboardTab: "asc" }
     });
@@ -56,6 +68,7 @@ export async function PUT(request: Request) {
     }
 
     const upserted = await prisma.dashboardTabConnection.upsert({
+      select: dashboardConnectionSelect,
       where: {
         userEmail_dashboardTab: {
           userEmail,
