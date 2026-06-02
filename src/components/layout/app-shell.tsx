@@ -860,39 +860,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     
                     <div style={{ flex: "1 1 100%", overflowY: "auto", minHeight: "0" }}>
                       <ul className="sidebar-contained-list">
-                        {/* Active Local File */}
-                        {activeFileName && (
-                          <li className="sidebar-list-item">
-                            <div
-                              className={`sidebar-list-link${activeSource === "active-file" ? " is-active" : ""}`}
-                              style={{ cursor: "pointer" }}
-                              onClick={() => setActiveSource("active-file")}
-                            >
-                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: 1 }}>
-                                <Document size={16} style={{ color: activeSource === "active-file" ? "#0f62fe" : "var(--cds-text-secondary)", flexShrink: 0 }} />
-                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {activeFileName}
-                                </span>
-                              </div>
-                              <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                                <Button
-                                  kind="danger--ghost"
-                                  size="sm"
-                                  hasIconOnly
-                                  renderIcon={TrashCan}
-                                  iconDescription="Hapus Berkas"
-                                  tooltipPosition="left"
-                                  style={{ width: "24px", height: "24px", minHeight: "auto", padding: 0 }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteFile();
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          </li>
-                        )}
-
                         {/* Spreadsheet Connections */}
                         {connections.map((conn) => (
                           <li key={conn.id} className="sidebar-list-item" style={{ borderBottom: "none" }}>
@@ -941,7 +908,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         ))}
 
                         {/* Empty Catalog State */}
-                        {!activeFileName && connections.length === 0 && (
+                        {connections.length === 0 && (
                           <div style={{ padding: "1.5rem 1rem", textAlign: "center" }}>
                             <p style={{ fontSize: "0.75rem", color: "var(--cds-text-secondary)", margin: 0 }}>
                               Klik tombol "+" di atas untuk menghubungkan data.
