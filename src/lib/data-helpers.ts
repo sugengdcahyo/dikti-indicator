@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx";
 import { detectCanonicalKey } from "@/lib/normalization";
 import { toNumber, toString } from "@/lib/utils";
 import type { DashboardFilters, DataProfile, NormalizedRow, RawRow } from "@/types/data";
@@ -92,49 +91,6 @@ export function generateMockIkuData(faculty: string, year: string): { rows: RawR
     };
   });
 
-  return { rows, columns };
-}
-
-export async function parseSpreadsheetFile(file: File): Promise<{ rows: RawRow[]; columns: string[] }> {
-  const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<RawRow>(firstSheet, { defval: "" });
-  const columns = rows.length ? Object.keys(rows[0]) : [];
-  return { rows, columns };
-}
-
-function toGoogleSheetExportUrl(url: string): string {
-  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  if (!match) return url;
-  const sheetId = match[1];
-  const gidMatch = url.match(/[?&]gid=(\d+)/);
-  const gid = gidMatch?.[1] ?? "0";
-  return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx&gid=${gid}`;
-}
-
-export async function parseSpreadsheetUrl(url: string): Promise<{ rows: RawRow[]; columns: string[] }> {
-  const trimmed = url.trim();
-  if (trimmed === "drive-folder-demo-teknik" || trimmed.endsWith("teknik")) {
-    return generateMockIkuData("Teknik", "2026");
-  }
-  if (trimmed === "drive-folder-demo-mipa" || trimmed.endsWith("mipa")) {
-    return generateMockIkuData("MIPA", "2026");
-  }
-  if (trimmed === "drive-folder-demo-ekonomi" || trimmed.endsWith("ekonomi")) {
-    return generateMockIkuData("Ekonomi", "2026");
-  }
-
-  const finalUrl = toGoogleSheetExportUrl(trimmed);
-  const response = await fetch(finalUrl);
-  if (!response.ok) {
-    throw new Error("Gagal mengambil data dari URL spreadsheet");
-  }
-  const buffer = await response.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<RawRow>(firstSheet, { defval: "" });
-  const columns = rows.length ? Object.keys(rows[0]) : [];
   return { rows, columns };
 }
 
@@ -281,8 +237,18 @@ export function getInsights(rows: NormalizedRow[], threshold = 80) {
 }
 
 export function exportRowsToCsv(rows: RawRow[], filename = "export.csv") {
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  const csv = XLSX.utils.sheet_to_csv(worksheet);
+  const columns = rows.length ? Object.keys(rows[0]) : [];
+  const escapeCell = (value: unknown) => {
+    const text = String(value ?? "");
+    if (/[",\n]/.test(text)) {
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
+  };
+  const csv = [
+    columns.join(","),
+    ...rows.map((row) => columns.map((column) => escapeCell(row[column])).join(","))
+  ].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

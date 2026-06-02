@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useId } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -44,19 +44,9 @@ import {
   Notification,
   Settings
 } from "@carbon/icons-react";
+import { dashboardMenuItems } from "@/lib/dashboard-config";
 import { useDashboardStore } from "@/store/dashboard-store";
-import { parseSpreadsheetFile, parseSpreadsheetUrl } from "@/lib/data-helpers";
 import type { SheetConnection, SpreadsheetFile } from "@/lib/source-connection-types";
-
-const dashboardMenuItems = [
-  "Overview",
-  "IKU 001",
-  "IKU 002",
-  "IKU 003",
-  "IKU 005",
-  "IKU 007",
-  "IKU 009"
-];
 
 const activityItems = [
   { id: "visual", label: "Visualizations", icon: ChartBar, href: "/dashboard" },
@@ -66,16 +56,39 @@ const activityItems = [
 
 const ACCEPTED = [".csv", ".xlsx", ".xls"];
 
+async function loadSpreadsheetParser() {
+  return import("@/lib/spreadsheet-parser");
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const uid = useId();
-  const { columns, activeFileName, setData, setError, parseStatus, errorMessage, rows, setActiveFileName, activeDashboardTab, setActiveDashboardTab } = useDashboardStore();
+  const {
+    columns,
+    activeFileName,
+    setData,
+    setLoading,
+    setError,
+    parseStatus,
+    errorMessage,
+    rows,
+    setActiveFileName,
+    activeDashboardTab,
+    setActiveDashboardTab,
+    setSourceConnections,
+    dashboardTabConnections,
+    setDashboardTabConnections,
+    setDashboardConnectionsReady
+  } = useDashboardStore();
 
   // Catalog States (Global Sidebar)
   const [connections, setConnections] = useState<SheetConnection[]>([]);
   const [activeSource, setActiveSource] = useState<string>("");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(true);
+  const [isExecutiveDashboardMenuOpen, setIsExecutiveDashboardMenuOpen] = useState(false);
+  const [isQsRankingMenuOpen, setIsQsRankingMenuOpen] = useState(false);
 
   // Profile Dropdown Menu States
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -135,6 +148,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const dashboardConnectionByTab = useMemo(
+    () => new Map(dashboardTabConnections.map((connection) => [connection.dashboardTab, connection])),
+    [dashboardTabConnections]
+  );
+
   const persistConnectionsToServer = async (nextConn: SheetConnection[]) => {
     const email = getSessionEmail().toLowerCase();
     if (!email) throw new Error("SESSION_EMAIL_MISSING");
@@ -152,6 +170,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const saveConnections = async (nextConn: SheetConnection[]) => {
     setConnections(nextConn);
+    setSourceConnections(nextConn);
     try {
       await persistConnectionsToServer(nextConn);
       return true;
@@ -200,13 +219,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const parsed = Array.isArray(json.connections) ? (json.connections as SheetConnection[]) : [];
         const effectiveConnections = parsed;
         setConnections(effectiveConnections);
+        setSourceConnections(effectiveConnections);
 
         const sourceFromUrl = new URLSearchParams(window.location.search).get("source");
-        let restoredFromUrl = false;
 
         if (sourceFromUrl === "active-file") {
           setActiveSource("active-file");
-          restoredFromUrl = true;
         } else if (sourceFromUrl) {
           const directConn = effectiveConnections.find((c: SheetConnection) => c.id === sourceFromUrl);
           if (directConn) {
@@ -216,27 +234,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               setExpandedFolders((prev) => ({ ...prev, [directConn.id]: true }));
               setActiveSource(directConn.id);
             }
-            restoredFromUrl = true;
           } else {
             for (const folderConn of effectiveConnections.filter((c: SheetConnection) => c.type === "folder")) {
               const matchedFile = folderConn.files?.find((f: SpreadsheetFile) => f.id === sourceFromUrl);
               if (matchedFile) {
                 setExpandedFolders((prev) => ({ ...prev, [folderConn.id]: true }));
                 void handleLoadFolderFile(matchedFile, folderConn.id);
-                restoredFromUrl = true;
                 break;
               }
             }
-          }
-        }
-
-        if (!restoredFromUrl && effectiveConnections.length > 0) {
-          const firstConn = effectiveConnections[0];
-          if (firstConn.type === "folder" && firstConn.files && firstConn.files.length > 0) {
-            const firstFile = firstConn.files[0];
-            void handleLoadFolderFile(firstFile, firstConn.id);
-          } else if (firstConn.type === "sheet") {
-            void handleSwitchDataset(firstConn);
           }
         }
 
@@ -249,11 +255,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
       } catch {
         setConnections([]);
+        setSourceConnections([]);
       }
     };
 
     void loadConnections();
   }, [currentUser?.email]);
+
+  useEffect(() => {
+    if (!currentUser?.email) {
+      setDashboardTabConnections([]);
+      setDashboardConnectionsReady(false);
+      return;
+    }
+
+    const loadDashboardConnections = async () => {
+      setDashboardConnectionsReady(false);
+      try {
+        const resp = await fetch(`/api/dashboard-connections?userEmail=${encodeURIComponent(currentUser.email)}`, {
+          cache: "no-store",
+        });
+        if (!resp.ok) {
+          setDashboardTabConnections([]);
+          setDashboardConnectionsReady(true);
+          return;
+        }
+
+        const json = await resp.json();
+        setDashboardTabConnections(Array.isArray(json.connections) ? json.connections : []);
+        setDashboardConnectionsReady(true);
+      } catch {
+        setDashboardTabConnections([]);
+        setDashboardConnectionsReady(true);
+      }
+    };
+
+    void loadDashboardConnections();
+  }, [currentUser?.email, setDashboardConnectionsReady, setDashboardTabConnections]);
 
   // Listen for global open-upload-modal event
   useEffect(() => {
@@ -338,7 +376,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const syncFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
       const tabFromUrl = params.get("tab");
-      if (tabFromUrl && dashboardMenuItems.includes(tabFromUrl)) {
+      if (tabFromUrl && dashboardMenuItems.some((item) => item === tabFromUrl)) {
         if (tabFromUrl !== activeDashboardTab) setActiveDashboardTab(tabFromUrl);
         return;
       }
@@ -364,6 +402,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     try {
       setIsParsing(true);
+      setLoading();
+      const { parseSpreadsheetFile } = await loadSpreadsheetParser();
       const { rows: parsedRows, columns: parsedColumns } = await parseSpreadsheetFile(file);
       setData(parsedRows, parsedColumns);
       setActiveFileName(file.name);
@@ -385,6 +425,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     try {
       setIsParsing(true);
+      setLoading();
 
       const newId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
       let mockSpreadsheets: SpreadsheetFile[] | undefined = undefined;
@@ -402,6 +443,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         setExpandedFolders((prev) => ({ ...prev, [newId]: true }));
         
         // Load the first spreadsheet in that folder by default
+        const { parseSpreadsheetUrl } = await loadSpreadsheetParser();
         const { rows: parsedRows, columns: parsedColumns } = await parseSpreadsheetUrl(mockSpreadsheets[0].url);
         setData(parsedRows, parsedColumns);
         setActiveFileName(mockSpreadsheets[0].name);
@@ -409,6 +451,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         setActiveSourceUrl(mockSpreadsheets[0].id);
       } else {
         // Connect a single spreadsheetURL
+        const { parseSpreadsheetUrl } = await loadSpreadsheetParser();
         const { rows: parsedRows, columns: parsedColumns } = await parseSpreadsheetUrl(newConnUrl);
         setData(parsedRows, parsedColumns);
         setActiveSource(newId);
@@ -449,6 +492,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const handleSwitchDataset = async (conn: SheetConnection) => {
     try {
       setIsParsing(true);
+      setLoading();
+      const { parseSpreadsheetUrl } = await loadSpreadsheetParser();
       const { rows: parsedRows, columns: parsedColumns } = await parseSpreadsheetUrl(conn.url);
       setData(parsedRows, parsedColumns);
       setActiveSource(conn.id);
@@ -468,7 +513,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const handleLoadFolderFile = async (file: SpreadsheetFile, folderId: string) => {
     try {
       setIsParsing(true);
+      setLoading();
       // Simulating fetching/loading data for this specific prodi file from the drive folder url
+      const { parseSpreadsheetUrl } = await loadSpreadsheetParser();
       const { rows: parsedRows, columns: parsedColumns } = await parseSpreadsheetUrl(file.url);
       setData(parsedRows, parsedColumns);
       setActiveFileName(file.name);
@@ -766,27 +813,153 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </div>
                     <div style={{ flex: "1 1 100%", overflowY: "auto", minHeight: "0" }}>
                       <ul className="sidebar-contained-list">
-                        {dashboardMenuItems.map((item) => {
-                          const isActive = activeDashboardTab === item;
-                          return (
-                            <li key={item} className="sidebar-list-item">
-                              <button
-                                className={`sidebar-list-link${isActive ? " is-active" : ""}`}
-                                onClick={() => {
-                                  setDashboardTabUrl(item);
-                                  setActiveDashboardTab(item);
-                                }}
-                              >
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
-                                  <ChartBar size={16} style={{ color: isActive ? "#0f62fe" : "var(--cds-text-secondary)", flexShrink: 0 }} />
-                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    {item}
-                                  </span>
+                        <li className="sidebar-list-item">
+                          <button
+                            className="sidebar-list-link"
+                            onClick={() => setIsDashboardMenuOpen((current) => !current)}
+                            aria-expanded={isDashboardMenuOpen}
+                            aria-controls={`${uid}-monev-iku-menu`}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: 1 }}>
+                              {isDashboardMenuOpen ? (
+                                <ChevronDown size={14} style={{ color: "var(--cds-text-secondary)", flexShrink: 0 }} />
+                              ) : (
+                                <ChevronRight size={14} style={{ color: "var(--cds-text-secondary)", flexShrink: 0 }} />
+                              )}
+                              <ChartBar size={16} style={{ color: "#0f62fe", flexShrink: 0 }} />
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
+                                Monev IKU
+                              </span>
+                            </div>
+                          </button>
+                        </li>
+                        {isDashboardMenuOpen && (
+                          <li id={`${uid}-monev-iku-menu`}>
+                            <ul className="sidebar-contained-list">
+                              {dashboardMenuItems.map((item) => {
+                                const isActive = activeDashboardTab === item;
+                                const mappedConnection = dashboardConnectionByTab.get(item);
+                                const shouldAutoSelectSource =
+                                  item !== "Overview" && item !== "IKU 003" && Boolean(mappedConnection?.sourceId);
+                                return (
+                                  <li key={item} className="sidebar-list-item">
+                                    <button
+                                      className={`sidebar-list-link${isActive ? " is-active" : ""}`}
+                                      onClick={() => {
+                                        setDashboardTabUrl(item);
+                                        setActiveDashboardTab(item);
+                                        if (shouldAutoSelectSource) {
+                                          window.dispatchEvent(
+                                            new CustomEvent("app:select-source", {
+                                              detail: { sourceId: mappedConnection?.sourceId },
+                                            })
+                                          );
+                                        }
+                                      }}
+                                    >
+                                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: 1 }}>
+                                        <span style={{ width: "14px", flexShrink: 0 }} aria-hidden="true" />
+                                        <ChartBar size={16} style={{ color: isActive ? "#0f62fe" : "var(--cds-text-secondary)", flexShrink: 0 }} />
+                                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                          {item}
+                                        </span>
+                                      </div>
+                                      {item !== "Overview" && item !== "IKU 003" ? (
+                                        mappedConnection ? (
+                                          <CheckmarkFilled
+                                            size={14}
+                                            style={{ color: "#198038", flexShrink: 0 }}
+                                            title={mappedConnection.sourceLabel}
+                                          />
+                                        ) : (
+                                          <Information
+                                            size={14}
+                                            style={{ color: "var(--cds-text-secondary)", flexShrink: 0 }}
+                                            title="Belum ada mapping sumber data"
+                                          />
+                                        )
+                                      ) : null}
+                                    </button>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </li>
+                        )}
+                        <li className="sidebar-list-item">
+                          <button
+                            className="sidebar-list-link"
+                            onClick={() => setIsExecutiveDashboardMenuOpen((current) => !current)}
+                            aria-expanded={isExecutiveDashboardMenuOpen}
+                            aria-controls={`${uid}-dashboard-eksekutif-menu`}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: 1 }}>
+                              {isExecutiveDashboardMenuOpen ? (
+                                <ChevronDown size={14} style={{ color: "var(--cds-text-secondary)", flexShrink: 0 }} />
+                              ) : (
+                                <ChevronRight size={14} style={{ color: "var(--cds-text-secondary)", flexShrink: 0 }} />
+                              )}
+                              <ChartBar size={16} style={{ color: "#0f62fe", flexShrink: 0 }} />
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
+                                Dashboard Eksekutif
+                              </span>
+                            </div>
+                          </button>
+                        </li>
+                        {isExecutiveDashboardMenuOpen && (
+                          <li id={`${uid}-dashboard-eksekutif-menu`}>
+                            <ul className="sidebar-contained-list">
+                              <li className="sidebar-list-item">
+                                <div className="sidebar-list-link" aria-disabled="true" style={{ cursor: "default", opacity: 0.72 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
+                                    <span style={{ width: "14px", flexShrink: 0 }} aria-hidden="true" />
+                                    <Document size={16} style={{ color: "var(--cds-text-secondary)", flexShrink: 0 }} />
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      Belum ada item
+                                    </span>
+                                  </div>
                                 </div>
-                              </button>
-                            </li>
-                          );
-                        })}
+                              </li>
+                            </ul>
+                          </li>
+                        )}
+                        <li className="sidebar-list-item">
+                          <button
+                            className="sidebar-list-link"
+                            onClick={() => setIsQsRankingMenuOpen((current) => !current)}
+                            aria-expanded={isQsRankingMenuOpen}
+                            aria-controls={`${uid}-qs-ranking-menu`}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: 1 }}>
+                              {isQsRankingMenuOpen ? (
+                                <ChevronDown size={14} style={{ color: "var(--cds-text-secondary)", flexShrink: 0 }} />
+                              ) : (
+                                <ChevronRight size={14} style={{ color: "var(--cds-text-secondary)", flexShrink: 0 }} />
+                              )}
+                              <Certificate size={16} style={{ color: "#0f62fe", flexShrink: 0 }} />
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
+                                QS World University Ranking
+                              </span>
+                            </div>
+                          </button>
+                        </li>
+                        {isQsRankingMenuOpen && (
+                          <li id={`${uid}-qs-ranking-menu`}>
+                            <ul className="sidebar-contained-list">
+                              <li className="sidebar-list-item">
+                                <div className="sidebar-list-link" aria-disabled="true" style={{ cursor: "default", opacity: 0.72 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
+                                    <span style={{ width: "14px", flexShrink: 0 }} aria-hidden="true" />
+                                    <Document size={16} style={{ color: "var(--cds-text-secondary)", flexShrink: 0 }} />
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      Belum ada item
+                                    </span>
+                                  </div>
+                                </div>
+                              </li>
+                            </ul>
+                          </li>
+                        )}
                       </ul>
                     </div>
                   </>

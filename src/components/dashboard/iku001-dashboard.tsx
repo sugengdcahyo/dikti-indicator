@@ -7,6 +7,7 @@ import {
   Tile,
   Tag,
   Button,
+  Loading,
   Dropdown,
   Search,
   DataTable,
@@ -29,7 +30,7 @@ import type { RawRow } from "@/types/data";
 
 type Props = {
   rows: RawRow[];
-  parseStatus: "idle" | "success" | "error";
+  parseStatus: "idle" | "loading" | "success" | "error";
   errorMessage: string | null;
 };
 
@@ -105,9 +106,18 @@ const toNum = (v: unknown) => {
 
 const toStr = (v: unknown) => (v == null ? "" : String(v).trim());
 
-function Iku001Skeleton() {
+export function Iku001Skeleton() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <Tile style={{ padding: "1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <Loading withOverlay={false} small description="Memuat data IKU 001..." />
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <strong style={{ fontSize: "0.875rem", color: "var(--cds-text-primary)" }}>Memuat data IKU 001</strong>
+          <span style={{ fontSize: "0.75rem", color: "var(--cds-text-secondary)" }}>
+            Sedang mengurai spreadsheet dan menyiapkan chart.
+          </span>
+        </div>
+      </Tile>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: "1rem" }}>
         {Array.from({ length: 5 }).map((_, idx) => (
           <Tile key={idx}><SkeletonText heading width="70%" /><SkeletonText paragraph lineCount={2} width="90%" /></Tile>
@@ -281,7 +291,7 @@ export function Iku001Dashboard({ rows, parseStatus, errorMessage }: Props) {
 
   const rowsTable = useMemo(() => prodiPerf.map((p, i) => ({ id: `prodi-${i}`, studyProgram: p.studyProgram, faculty: p.faculty, degree: p.degree, studentsIn: String(p.in), graduatesOnTime: String(p.grad), iku: `${p.iku.toFixed(2)}%` })), [prodiPerf]);
 
-  if (isLoading) return <Iku001Skeleton />;
+  if (parseStatus === "loading" || isLoading) return <Iku001Skeleton />;
 
   if (parseStatus === "error") {
     return (
