@@ -123,16 +123,10 @@ function DashboardPageContent() {
 
   const existingConnectionOptions = useMemo(
     () =>
-      sourceConnections.flatMap((conn) => {
-        const root = {
-          id: conn.id,
-          label: conn.type === "folder" ? `${conn.name} (Folder)` : `${conn.name} (Sheet)`
-        };
-        const files = Array.isArray(conn.files)
-          ? conn.files.map((file) => ({ id: file.id, label: `${file.name} (${conn.name})` }))
-          : [];
-        return [root, ...files];
-      }),
+      sourceConnections.map((conn) => ({
+        id: conn.id,
+        label: conn.name
+      })),
     [sourceConnections]
   );
 

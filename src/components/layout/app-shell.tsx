@@ -18,8 +18,6 @@ import {
   Modal,
   Dropdown,
   TextInput,
-  ContentSwitcher,
-  Switch,
   InlineNotification,
   Loading
 } from "@carbon/react";
@@ -34,19 +32,16 @@ import {
   Edit,
   Add,
   CheckmarkFilled,
-  Folder,
   ChevronDown,
   ChevronRight,
-  Renew,
   Information,
   User,
   Logout,
-  Notification,
   Settings
 } from "@carbon/icons-react";
 import { dashboardMenuItems } from "@/lib/dashboard-config";
 import { useDashboardStore } from "@/store/dashboard-store";
-import type { SheetConnection, SpreadsheetFile } from "@/lib/source-connection-types";
+import type { SheetConnection } from "@/lib/source-connection-types";
 
 const activityItems = [
   { id: "visual", label: "Visualizations", icon: ChartBar, href: "/dashboard" },
@@ -79,13 +74,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setSourceConnections,
     dashboardTabConnections,
     setDashboardTabConnections,
+    areDashboardConnectionsReady,
     setDashboardConnectionsReady
   } = useDashboardStore();
 
   // Catalog States (Global Sidebar)
   const [connections, setConnections] = useState<SheetConnection[]>([]);
   const [activeSource, setActiveSource] = useState<string>("");
-  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(true);
   const [isExecutiveDashboardMenuOpen, setIsExecutiveDashboardMenuOpen] = useState(false);
   const [isQsRankingMenuOpen, setIsQsRankingMenuOpen] = useState(false);
@@ -98,7 +93,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Modal States
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadMode, setUploadMode] = useState<"file" | "sheet">("file");
-  const [sheetConnType, setSheetConnType] = useState<"sheet" | "folder">("sheet");
   const [isParsing, setIsParsing] = useState(false);
   const [newConnName, setNewConnName] = useState("");
   const [newConnUrl, setNewConnUrl] = useState("");
@@ -109,10 +103,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [editingConn, setEditingConn] = useState<SheetConnection[] | any>(null);
   const [editName, setEditName] = useState("");
   const [editUrl, setEditUrl] = useState("");
-  const [editFiles, setEditFiles] = useState<SpreadsheetFile[]>([]);
-  const [newFileName, setNewFileName] = useState("");
-  const [isSyncingFolder, setIsSyncingFolder] = useState(false);
-  const [syncingSidebarFolderId, setSyncingSidebarFolderId] = useState<string | null>(null);
   const [confirmDeleteConnId, setConfirmDeleteConnId] = useState<string | null>(null);
 
   // Dynamic Alert Modal States
@@ -127,6 +117,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     description: "",
     kind: "info"
   });
+  const [sourceLoadNotice, setSourceLoadNotice] = useState<{
+    title: string;
+    description: string;
+    kind: "error" | "warning";
+  } | null>(null);
 
   const triggerAlert = (title: string, description: string, kind: "info" | "danger" | "warning" = "info") => {
     setAlertModal({
@@ -136,6 +131,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       kind
     });
   };
+
+  useEffect(() => {
+    if (!sourceLoadNotice) return;
+
+    const timer = window.setTimeout(() => {
+      setSourceLoadNotice(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [sourceLoadNotice]);
 
   const getSessionEmail = () => {
     if (currentUser?.email) return currentUser.email;
@@ -228,30 +233,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         } else if (sourceFromUrl) {
           const directConn = effectiveConnections.find((c: SheetConnection) => c.id === sourceFromUrl);
           if (directConn) {
-            if (directConn.type === "sheet") {
-              void handleSwitchDataset(directConn);
-            } else {
-              setExpandedFolders((prev) => ({ ...prev, [directConn.id]: true }));
-              setActiveSource(directConn.id);
-            }
-          } else {
-            for (const folderConn of effectiveConnections.filter((c: SheetConnection) => c.type === "folder")) {
-              const matchedFile = folderConn.files?.find((f: SpreadsheetFile) => f.id === sourceFromUrl);
-              if (matchedFile) {
-                setExpandedFolders((prev) => ({ ...prev, [folderConn.id]: true }));
-                void handleLoadFolderFile(matchedFile, folderConn.id);
-                break;
-              }
-            }
+            void handleSwitchDataset(directConn);
           }
-        }
-
-        if (Array.isArray(effectiveConnections)) {
-          effectiveConnections.forEach((c: SheetConnection) => {
-            if (c.type === "folder") {
-              setExpandedFolders((prev) => ({ ...prev, [c.id]: true }));
-            }
-          });
         }
       } catch {
         setConnections([]);
@@ -293,6 +276,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     void loadDashboardConnections();
   }, [currentUser?.email, setDashboardConnectionsReady, setDashboardTabConnections]);
 
+  // Automatically sync active data source when active dashboard tab changes
+  useEffect(() => {
+    if (activeDashboardTab === "Overview" || !areDashboardConnectionsReady) return;
+
+    const connection = dashboardTabConnections.find(
+      (c) => c.dashboardTab === activeDashboardTab
+    );
+    if (!connection) return;
+
+    const sourceId = connection.sourceId;
+    if (activeSource === sourceId) return;
+
+    const directConn = connections.find((c) => c.id === sourceId);
+    if (directConn) {
+      void handleSwitchDataset(directConn);
+    }
+  }, [
+    activeDashboardTab,
+    dashboardTabConnections,
+    connections,
+    areDashboardConnectionsReady,
+    activeSource
+  ]);
+
   // Listen for global open-upload-modal event
   useEffect(() => {
     const handler = () => setIsUploadModalOpen(true);
@@ -316,23 +323,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       const directConn = connections.find((c) => c.id === sourceId);
       if (directConn) {
-        if (directConn.type === "folder") {
-          setExpandedFolders((prev) => ({ ...prev, [directConn.id]: true }));
-          setActiveSource(directConn.id);
-          setActiveSourceUrl(directConn.id);
-        } else {
-          void handleSwitchDataset(directConn);
-        }
-        return;
-      }
-
-      for (const conn of connections.filter((c) => c.type === "folder")) {
-        const file = conn.files?.find((f) => f.id === sourceId);
-        if (file) {
-          setExpandedFolders((prev) => ({ ...prev, [conn.id]: true }));
-          void handleLoadFolderFile(file, conn.id);
-          return;
-        }
+        void handleSwitchDataset(directConn);
       }
     };
 
@@ -428,45 +419,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setLoading();
 
       const newId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
-      let mockSpreadsheets: SpreadsheetFile[] | undefined = undefined;
-
-      if (sheetConnType === "folder") {
-        // If it's a Drive folder, populate it with mock spreadsheet files inside that folder,
-        // dynamically synced with the connection name entered by the user
-        const cleanFolderName = newConnName.trim().replace(/\s+/g, "_");
-        mockSpreadsheets = [
-          { id: `${newId}-file-1`, name: `IKU003_Fakultas_Teknik_${cleanFolderName}.xlsx`, url: `${newConnUrl.trim()}#teknik` },
-          { id: `${newId}-file-2`, name: `IKU003_Fakultas_MIPA_${cleanFolderName}.xlsx`, url: `${newConnUrl.trim()}#mipa` },
-          { id: `${newId}-file-3`, name: `IKU003_Fakultas_Ekonomi_${cleanFolderName}.xlsx`, url: `${newConnUrl.trim()}#ekonomi` },
-        ];
-        // Automatically open the folder expander in the sidebar
-        setExpandedFolders((prev) => ({ ...prev, [newId]: true }));
-        
-        // Load the first spreadsheet in that folder by default
-        const { parseSpreadsheetUrl } = await loadSpreadsheetParser();
-        const { rows: parsedRows, columns: parsedColumns } = await parseSpreadsheetUrl(mockSpreadsheets[0].url);
-        setData(parsedRows, parsedColumns);
-        setActiveFileName(mockSpreadsheets[0].name);
-        setActiveSource(mockSpreadsheets[0].id);
-        setActiveSourceUrl(mockSpreadsheets[0].id);
-      } else {
-        // Connect a single spreadsheetURL
-        const { parseSpreadsheetUrl } = await loadSpreadsheetParser();
-        const { rows: parsedRows, columns: parsedColumns } = await parseSpreadsheetUrl(newConnUrl);
-        setData(parsedRows, parsedColumns);
-        setActiveSource(newId);
-        setActiveSourceUrl(newId);
-      }
+      const { parseSpreadsheetUrl } = await loadSpreadsheetParser();
+      const { rows: parsedRows, columns: parsedColumns } = await parseSpreadsheetUrl(newConnUrl);
+      setData(parsedRows, parsedColumns);
+      setActiveFileName(newConnName.trim());
+      setActiveSource(newId);
+      setActiveSourceUrl(newId);
 
       // Save connection
-      const nextConn = [
+      const nextConn: SheetConnection[] = [
         ...connections,
         {
           id: newId,
-          type: sheetConnType,
+          type: "sheet",
           name: newConnName.trim(),
           url: newConnUrl.trim(),
-          files: mockSpreadsheets,
         },
       ];
       const saved = await saveConnections(nextConn);
@@ -482,7 +449,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setNewConnUrl("");
       setIsUploadModalOpen(false); // Close Modal on success
     } catch {
-      setError("Gagal memuat koneksi. Periksa kembali URL dan pastikan akses publik berkas/folder terbuka.");
+      setError("Gagal memuat koneksi. Periksa kembali URL dan pastikan akses publik spreadsheet terbuka.");
     } finally {
       setIsParsing(false);
     }
@@ -496,37 +463,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const { parseSpreadsheetUrl } = await loadSpreadsheetParser();
       const { rows: parsedRows, columns: parsedColumns } = await parseSpreadsheetUrl(conn.url);
       setData(parsedRows, parsedColumns);
+      setActiveFileName(conn.name);
       setActiveSource(conn.id);
       setActiveSourceUrl(conn.id);
     } catch {
-      triggerAlert(
-        "Koneksi Gagal",
-        "Gagal memuat data dari Spreadsheet. Pastikan tautan masih aktif dan dapat diakses publik.",
-        "danger"
-      );
-    } finally {
-      setIsParsing(false);
-    }
-  };
-
-  // Load a specific spreadsheet file from a connected Drive Folder
-  const handleLoadFolderFile = async (file: SpreadsheetFile, folderId: string) => {
-    try {
-      setIsParsing(true);
-      setLoading();
-      // Simulating fetching/loading data for this specific prodi file from the drive folder url
-      const { parseSpreadsheetUrl } = await loadSpreadsheetParser();
-      const { rows: parsedRows, columns: parsedColumns } = await parseSpreadsheetUrl(file.url);
-      setData(parsedRows, parsedColumns);
-      setActiveFileName(file.name);
-      setActiveSource(file.id);
-      setActiveSourceUrl(file.id);
-    } catch {
-      triggerAlert(
-        "Koneksi Gagal",
-        "Gagal memuat file dari Google Drive Folder.",
-        "danger"
-      );
+      setSourceLoadNotice({
+        title: "Koneksi Gagal",
+        description: "Gagal memuat data dari Spreadsheet. Pastikan tautan masih aktif dan dapat diakses publik.",
+        kind: "error"
+      });
     } finally {
       setIsParsing(false);
     }
@@ -537,106 +482,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setEditingConn(conn);
     setEditName(conn.name);
     setEditUrl(conn.url);
-    setEditFiles(conn.files || []);
-    setNewFileName("");
     setIsEditModalOpen(true);
   };
 
   const handleSaveEdit = () => {
     if (!editingConn) return;
-    
-    // Dynamically update the nested file names to match the updated connection name!
-    let nextFiles = editFiles;
-    if (editingConn.type === "folder") {
-      const cleanFolderName = editName.trim().replace(/\s+/g, "_");
-      nextFiles = editFiles.map((file) => {
-        // If the file name starts with IKU003_Fakultas_, we can keep the faculty prefix and append the updated folder name
-        const facultyMatch = file.name.match(/IKU003_(Fakultas_[A-Za-z0-9_]+?|Pascasarjana_[A-Za-z0-9_]+?|Dokumen_[A-Za-z0-9_]+?)_/);
-        const prefix = facultyMatch ? `IKU003_${facultyMatch[1]}` : "IKU003_Dokumen";
-        const suffix = file.url.split("#")[1] || "teknik";
-        return {
-          ...file,
-          name: `${prefix}_${cleanFolderName}.xlsx`,
-          url: `${editUrl.trim()}#${suffix}`
-        };
-      });
-    }
 
-    const nextConn = connections.map((c) =>
+    const nextConn: SheetConnection[] = connections.map((c) =>
       c.id === editingConn.id
-        ? { ...c, name: editName.trim(), url: editUrl.trim(), files: c.type === "folder" ? nextFiles : undefined }
+        ? { ...c, name: editName.trim(), url: editUrl.trim(), type: "sheet" }
         : c
     );
     void saveConnections(nextConn);
     setIsEditModalOpen(false);
   };
 
-  // Sync Folder Spreadsheets from Sidebar
-  const handleSyncSidebarFolder = (conn: SheetConnection) => {
-    setSyncingSidebarFolderId(conn.id);
-    setExpandedFolders((prev) => ({ ...prev, [conn.id]: true }));
-
-    setTimeout(() => {
-      const cleanFolderName = conn.name.trim().replace(/\s+/g, "_");
-      const newFiles: SpreadsheetFile[] = [
-        { id: `${conn.id}-sync-1`, name: `IKU003_Fakultas_Teknik_${cleanFolderName}.xlsx`, url: `${conn.url.trim()}#teknik` },
-        { id: `${conn.id}-sync-2`, name: `IKU003_Fakultas_MIPA_${cleanFolderName}.xlsx`, url: `${conn.url.trim()}#mipa` },
-        { id: `${conn.id}-sync-3`, name: `IKU003_Fakultas_Ekonomi_${cleanFolderName}.xlsx`, url: `${conn.url.trim()}#ekonomi` },
-        { id: `${conn.id}-sync-4`, name: `IKU003_Pascasarjana_${cleanFolderName}.xlsx`, url: `${conn.url.trim()}#pasca` },
-      ];
-
-      const nextConn = connections.map((c) =>
-        c.id === conn.id ? { ...c, files: newFiles } : c
-      );
-      void saveConnections(nextConn);
-      
-      // Load the first spreadsheet file in that folder by default
-      void handleLoadFolderFile(newFiles[0], conn.id);
-      setSyncingSidebarFolderId(null);
-    }, 1200);
-  };
-
-  // Sync Folder Spreadsheets from Modal
-  const handleSyncFolderModal = () => {
-    if (!editingConn) return;
-    setIsSyncingFolder(true);
-    setTimeout(() => {
-      const cleanFolderName = editName.trim().replace(/\s+/g, "_");
-      const newFiles: SpreadsheetFile[] = [
-        { id: `${editingConn.id}-sync-1`, name: `IKU003_Fakultas_Teknik_${cleanFolderName}.xlsx`, url: `${editUrl.trim()}#teknik` },
-        { id: `${editingConn.id}-sync-2`, name: `IKU003_Fakultas_MIPA_${cleanFolderName}.xlsx`, url: `${editUrl.trim()}#mipa` },
-        { id: `${editingConn.id}-sync-3`, name: `IKU003_Fakultas_Ekonomi_${cleanFolderName}.xlsx`, url: `${editUrl.trim()}#ekonomi` },
-        { id: `${editingConn.id}-sync-4`, name: `IKU003_Pascasarjana_${cleanFolderName}.xlsx`, url: `${editUrl.trim()}#pasca` },
-      ];
-      setEditFiles(newFiles);
-      setIsSyncingFolder(false);
-    }, 1200);
-  };
-
   // Delete Connection Handler
   const handleDeleteConnection = (id: string) => {
     const nextConn = connections.filter((c) => c.id !== id);
     void saveConnections(nextConn);
-    if (activeSource === id || activeSource.startsWith(id)) {
+    if (activeSource === id) {
       setActiveSource("");
+      setActiveFileName("");
       setData([], []); // Reset store data
     }
   };
 
-  // Delete Local File Handler
   const handleDeleteFile = () => {
     setData([], []);
     setActiveFileName("");
     if (activeSource === "active-file") {
       setActiveSource("");
     }
-  };
-
-  const toggleFolder = (id: string) => {
-    setExpandedFolders((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
   };
 
   return (
@@ -1016,55 +893,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           </li>
                         )}
 
-                        {/* Spreadsheet & Folder Connections */}
+                        {/* Spreadsheet Connections */}
                         {connections.map((conn) => (
                           <li key={conn.id} className="sidebar-list-item" style={{ borderBottom: "none" }}>
-                            {/* Connection Root Item */}
                             <div
-                              className={`sidebar-list-link${(activeSource === conn.id && conn.type === "sheet") ? " is-active" : ""}`}
+                              className={`sidebar-list-link${activeSource === conn.id ? " is-active" : ""}`}
                               style={{ cursor: "pointer" }}
-                              onClick={() => {
-                                if (conn.type === "folder") {
-                                  toggleFolder(conn.id);
-                                } else {
-                                  void handleSwitchDataset(conn);
-                                }
-                              }}
+                              onClick={() => void handleSwitchDataset(conn)}
                             >
                               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: 1 }}>
-                                {conn.type === "folder" ? (
-                                  <>
-                                    {expandedFolders[conn.id] ? <ChevronDown size={14} style={{ flexShrink: 0 }} /> : <ChevronRight size={14} style={{ flexShrink: 0 }} />}
-                                    {syncingSidebarFolderId === conn.id ? (
-                                      <Loading withOverlay={false} small description="Scanning..." style={{ width: "16px", height: "16px", display: "inline-block", flexShrink: 0 }} />
-                                    ) : (
-                                      <Folder size={16} style={{ color: "#f5a623", flexShrink: 0 }} />
-                                    )}
-                                  </>
-                                ) : (
-                                  <LinkIcon size={16} style={{ color: activeSource === conn.id ? "#0f62fe" : "var(--cds-text-secondary)", flexShrink: 0 }} />
-                                )}
+                                <LinkIcon size={16} style={{ color: activeSource === conn.id ? "#0f62fe" : "var(--cds-text-secondary)", flexShrink: 0 }} />
                                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                   {conn.name}
                                 </span>
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: "0.15rem", flexShrink: 0 }}>
-                                {conn.type === "folder" && (
-                                  <Button
-                                    kind="ghost"
-                                    size="sm"
-                                    hasIconOnly
-                                    renderIcon={Renew}
-                                    iconDescription="Baca Ulang / Sync Folder"
-                                    tooltipPosition="left"
-                                    style={{ width: "20px", height: "20px", minHeight: "auto", padding: 0 }}
-                                    disabled={syncingSidebarFolderId === conn.id}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleSyncSidebarFolder(conn);
-                                    }}
-                                  />
-                                )}
                                 <Button
                                   kind="ghost"
                                   size="sm"
@@ -1094,29 +937,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                               </div>
                             </div>
 
-                            {/* Nested Folder Spreadsheet Files */}
-                            {conn.type === "folder" && conn.files && expandedFolders[conn.id] && (
-                              <ul className="sidebar-nested-list">
-                                {conn.files.map((file) => (
-                                  <li key={file.id}>
-                                    <div
-                                      className={`sidebar-nested-item${activeSource === file.id ? " is-active" : ""}`}
-                                      onClick={() => void handleLoadFolderFile(file, conn.id)}
-                                    >
-                                      <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", minWidth: 0, flex: 1 }}>
-                                        <Document size={14} style={{ color: activeSource === file.id ? "#0f62fe" : "var(--cds-text-secondary)", flexShrink: 0 }} />
-                                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                          {file.name}
-                                        </span>
-                                      </div>
-                                      {activeSource === file.id && (
-                                        <CheckmarkFilled size={12} style={{ color: "#0f62fe", flexShrink: 0 }} />
-                                      )}
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
                           </li>
                         ))}
 
@@ -1169,31 +989,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", padding: "0.5rem 0" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <p style={{ margin: 0, fontSize: "0.75rem", fontWeight: 600, color: "var(--cds-text-secondary)" }}>
-                Tipe Koneksi
-              </p>
-              <ContentSwitcher
-                selectedIndex={sheetConnType === "sheet" ? 0 : 1}
-                onChange={({ name }) => setSheetConnType(name === "folder" ? "folder" : "sheet")}
-                size="sm"
-                style={{ width: "100%", marginBottom: "0.25rem" }}
-              >
-                <Switch index={0} name="sheet" text="Single Google Sheet" />
-                <Switch index={1} name="folder" text="Google Drive Folder" />
-              </ContentSwitcher>
-
               <div className="upload-sheet-form__grid" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <TextInput
                   id={`${uid}-modal-conn-name`}
-                  labelText="Nama Koneksi"
-                  placeholder={sheetConnType === "sheet" ? "mis. IKU 2026 Universitas" : "mis. Folder IKU 2026"}
+                  labelText="Nama Sumber"
+                  placeholder="mis. IKU 2026 Universitas"
                   value={newConnName}
                   onChange={(e) => setNewConnName(e.target.value)}
                 />
                 <TextInput
                   id={`${uid}-modal-conn-url`}
-                  labelText={sheetConnType === "sheet" ? "URL Google Sheet" : "Tautan Folder Google Drive / ID"}
-                  placeholder={sheetConnType === "sheet" ? "Tautan URL Google Sheet publik" : "Tautan Folder Google Drive publik"}
+                  labelText="URL Google Sheet"
+                  placeholder="Tautan URL Google Sheet publik"
                   value={newConnUrl}
                   onChange={(e) => setNewConnUrl(e.target.value)}
                 />
@@ -1201,9 +1008,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <p style={{ fontSize: "0.75rem", color: "var(--cds-text-helper)", margin: 0, display: "flex", alignItems: "flex-start", gap: "0.375rem" }}>
                 <Information size={14} aria-hidden="true" style={{ color: "#0f62fe", flexShrink: 0, marginTop: "1px" }} />
                 <span>
-                  {sheetConnType === "sheet" 
-                    ? "Pastikan spreadsheet Anda memiliki izin akses 'Siapa saja yang memiliki link dapat melihat' agar data dapat terbaca."
-                    : "Pastikan folder Google Drive Anda memiliki izin akses publik agar daftar spreadsheet di dalamnya dapat terbaca."}
+                  Pastikan spreadsheet Anda memiliki izin akses "Siapa saja yang memiliki link dapat melihat" agar data dapat terbaca.
                 </span>
               </p>
             </div>
@@ -1252,118 +1057,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ── Modal Box 2: Global Edit Connection Modal (IBM/CDS Design) ── */}
       <Modal
         open={isEditModalOpen}
-        modalHeading={editingConn?.type === "folder" ? "Edit Koneksi Google Drive Folder" : "Edit Koneksi Spreadsheet"}
+        modalHeading="Edit Koneksi Spreadsheet"
         primaryButtonText="Simpan Perubahan"
         secondaryButtonText="Batal"
         onRequestClose={() => setIsEditModalOpen(false)}
         onRequestSubmit={handleSaveEdit}
-        primaryButtonDisabled={!editName.trim() || !editUrl.trim() || isSyncingFolder}
-        size={editingConn?.type === "folder" ? "md" : "sm"}
+        primaryButtonDisabled={!editName.trim() || !editUrl.trim()}
+        size="sm"
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem", padding: "0.5rem 0" }}>
           <TextInput
             id={`${uid}-edit-conn-name`}
-            labelText="Nama Koneksi"
+            labelText="Nama Sumber"
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
           />
           <TextInput
             id={`${uid}-edit-conn-url`}
-            labelText={editingConn?.type === "folder" ? "Tautan Folder Google Drive / ID" : "URL Spreadsheet"}
+            labelText="URL Spreadsheet"
             value={editUrl}
             onChange={(e) => setEditUrl(e.target.value)}
           />
-
-          {editingConn?.type === "folder" && (
-            <div style={{ borderTop: "1px solid var(--cds-border-subtle-01)", paddingTop: "1rem", marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--cds-text-primary)" }}>
-                  Daftar Spreadsheet Terdeteksi
-                </span>
-                <Button
-                  kind="ghost"
-                  size="sm"
-                  renderIcon={Renew}
-                  disabled={isSyncingFolder}
-                  onClick={handleSyncFolderModal}
-                >
-                  {isSyncingFolder ? "Membaca..." : "Pindai Ulang Folder"}
-                </Button>
-              </div>
-
-              {isSyncingFolder ? (
-                <div style={{ display: "flex", alignItems: "center", justifyItems: "center", gap: "1rem", padding: "1.5rem", border: "1px dashed var(--cds-border-subtle-01)", borderRadius: "4px" }}>
-                  <Loading withOverlay={false} small description="Membaca files..." />
-                  <span style={{ fontSize: "0.8125rem", color: "var(--cds-text-secondary)" }}>
-                    Membaca list file spreadsheet dari Google Drive connection...
-                  </span>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", maxHeight: "200px", overflowY: "auto", border: "1px solid var(--cds-border-subtle-01)", borderRadius: "4px", padding: "0.5rem" }}>
-                  {editFiles.map((file, i) => (
-                    <div key={file.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.375rem 0.5rem", background: "var(--cds-layer-01)", border: "1px solid var(--cds-border-subtle-00)", borderRadius: "4px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: 1 }}>
-                        <Document size={14} style={{ color: "var(--cds-text-secondary)", flexShrink: 0 }} />
-                        <span style={{ fontSize: "0.75rem", color: "var(--cds-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {file.name}
-                        </span>
-                      </div>
-                      <Button
-                        kind="danger--ghost"
-                        size="sm"
-                        hasIconOnly
-                        renderIcon={TrashCan}
-                        iconDescription="Hapus dari Folder"
-                        tooltipPosition="left"
-                        style={{ width: "20px", height: "20px", minHeight: "auto", padding: 0 }}
-                        onClick={() => setEditFiles(editFiles.filter((_, idx) => idx !== i))}
-                      />
-                    </div>
-                  ))}
-
-                  {editFiles.length === 0 && (
-                    <p style={{ fontSize: "0.75rem", color: "var(--cds-text-secondary)", textAlign: "center", margin: "1rem 0" }}>
-                      Tidak ada spreadsheet terdeteksi. Klik "Pindai Ulang Folder" atau tambahkan secara manual di bawah.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Add Manual Spreadsheet File */}
-              <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end", marginTop: "0.25rem" }}>
-                <div style={{ flex: 1 }}>
-                  <TextInput
-                    id={`${uid}-add-manual-file`}
-                    labelText="Tambah Spreadsheet Manual"
-                    placeholder="mis. IKU003_Pascasarjana_2026.xlsx"
-                    value={newFileName}
-                    onChange={(e) => setNewFileName(e.target.value)}
-                  />
-                </div>
-                <Button
-                  kind="secondary"
-                  size="sm"
-                  disabled={!newFileName.trim()}
-                  onClick={() => {
-                    if (!newFileName.trim()) return;
-                    const cleanName = newFileName.trim().endsWith(".xlsx") || newFileName.trim().endsWith(".csv") || newFileName.trim().endsWith(".xls")
-                      ? newFileName.trim()
-                      : `${newFileName.trim()}.xlsx`;
-                    const suffix = cleanName.toLowerCase().includes("mipa") ? "mipa" : cleanName.toLowerCase().includes("ekonomi") ? "ekonomi" : "teknik";
-                    const newFile: SpreadsheetFile = {
-                      id: `manual-file-${Math.random().toString(36).substring(2, 9)}`,
-                      name: cleanName,
-                      url: `${editUrl.trim()}#${suffix}`
-                    };
-                    setEditFiles([...editFiles, newFile]);
-                    setNewFileName("");
-                  }}
-                >
-                  Tambah
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       </Modal>
 
@@ -1391,6 +1105,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </Modal>
+
+      {sourceLoadNotice && (
+        <div
+          style={{
+            position: "fixed",
+            top: "5rem",
+            right: "1.5rem",
+            zIndex: 10000,
+            width: "min(28rem, calc(100vw - 3rem))"
+          }}
+        >
+          <InlineNotification
+            kind={sourceLoadNotice.kind}
+            title={sourceLoadNotice.title}
+            subtitle={sourceLoadNotice.description}
+            lowContrast
+            onCloseButtonClick={() => setSourceLoadNotice(null)}
+          />
+        </div>
+      )}
     </>
   );
 }
