@@ -2,6 +2,9 @@ import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 function getBaseUrl(request: Request) {
   const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
   if (configured) return configured.replace(/\/$/, "");

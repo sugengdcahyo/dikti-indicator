@@ -2,6 +2,9 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { upsertGoogleUser } from "@/lib/auth-repo";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 type GoogleTokenResponse = {
   access_token?: string;
   error?: string;

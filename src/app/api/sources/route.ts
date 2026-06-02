@@ -1,17 +1,47 @@
 import { NextResponse } from "next/server";
-import type { DataSourceConnection } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SheetConnection } from "@/lib/source-connection-types";
 
-function normalizeConnection(input: any): SheetConnection | null {
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+type RawConnectionFile = {
+  id: string;
+  name: string;
+  url: string;
+};
+
+type RawConnectionInput = {
+  id?: unknown;
+  type?: unknown;
+  name?: unknown;
+  url?: unknown;
+  files?: unknown;
+};
+
+function isRawConnectionFile(value: unknown): value is RawConnectionFile {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "id" in value &&
+      "name" in value &&
+      "url" in value &&
+      typeof value.id === "string" &&
+      typeof value.name === "string" &&
+      typeof value.url === "string"
+  );
+}
+
+function normalizeConnection(input: RawConnectionInput | null | undefined): SheetConnection | null {
   if (!input || typeof input !== "object") return null;
   if (!input.id || !input.name || !input.url || !input.type) return null;
   if (input.type !== "sheet" && input.type !== "folder") return null;
 
   const files = Array.isArray(input.files)
     ? input.files
-        .filter((f: any) => f && typeof f.id === "string" && typeof f.name === "string" && typeof f.url === "string")
-        .map((f: any) => ({ id: f.id, name: f.name, url: f.url }))
+        .filter((file): file is RawConnectionFile => isRawConnectionFile(file))
+        .map((file) => ({ id: file.id, name: file.name, url: file.url }))
     : undefined;
 
   return {
@@ -32,13 +62,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "userEmail wajib diisi." }, { status: 400 });
     }
 
-    const rows: DataSourceConnection[] = await prisma.dataSourceConnection.findMany({
+    const rows = await prisma.dataSourceConnection.findMany({
       where: { userEmail },
       orderBy: { createdAt: "asc" }
     });
 
     const connections: SheetConnection[] = rows
-      .map((row) =>
+      .map((row: { id: string; type: string; name: string; url: string; files: unknown }) =>
         normalizeConnection({
           id: String(row.id ?? ""),
           type: String(row.type ?? ""),
@@ -47,7 +77,7 @@ export async function GET(request: Request) {
           files: Array.isArray(row.files) ? row.files : undefined
         })
       )
-      .filter((item): item is SheetConnection => Boolean(item));
+      .filter((item: SheetConnection | null): item is SheetConnection => Boolean(item));
 
     return NextResponse.json({ connections });
   } catch {
@@ -59,7 +89,7 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
       userEmail?: string;
-      connections?: any[];
+      connections?: RawConnectionInput[];
     };
 
     const userEmail = (body.userEmail || "").trim().toLowerCase();
@@ -71,9 +101,9 @@ export async function POST(request: Request) {
 
     const connections = rawConnections
       .map((item) => normalizeConnection(item))
-      .filter((item): item is SheetConnection => Boolean(item));
+      .filter((item: SheetConnection | null): item is SheetConnection => Boolean(item));
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.dataSourceConnection.deleteMany({ where: { userEmail } });
 
       if (connections.length > 0) {
@@ -84,7 +114,7 @@ export async function POST(request: Request) {
             type: conn.type,
             name: conn.name,
             url: conn.url,
-            files: conn.files ? (conn.files as any) : undefined
+            files: conn.files
           }))
         });
       }

@@ -13,3 +13,9 @@ AGENTS.md
 CLAUDE.md
 tsconfig.tsbuildinfo
 .DS_Store
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+!.env.example

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createCredentialsUser } from "@/lib/auth-repo";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
@@ -30,7 +33,7 @@ export async function POST(request: Request) {
     await createCredentialsUser({ name, email, password });
 
     return NextResponse.json({ ok: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof Error && error.message === "EMAIL_EXISTS") {
       return NextResponse.json({ error: "Email institusi ini sudah terdaftar." }, { status: 409 });
     }
