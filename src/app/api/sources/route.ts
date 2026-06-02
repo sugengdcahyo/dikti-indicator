@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { DataSourceConnection } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SheetConnection } from "@/lib/source-connection-types";
 
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "userEmail wajib diisi." }, { status: 400 });
     }
 
-    const rows = await prisma.dataSourceConnection.findMany({
+    const rows: DataSourceConnection[] = await prisma.dataSourceConnection.findMany({
       where: { userEmail },
       orderBy: { createdAt: "asc" }
     });
