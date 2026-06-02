@@ -1,44 +1,41 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import useSWR from "swr";
+import { useEffect, useMemo, useState } from "react";
 import {
-  InlineNotification,
-  Tile,
-  Tag,
   Button,
-  Loading,
   Dropdown,
-  Search,
-  DataTable,
+  InlineNotification,
   Table,
-  TableHead,
-  TableRow,
-  TableHeader,
   TableBody,
   TableCell,
   TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
   TableToolbar,
   TableToolbarContent,
-  TableToolbarSearch,
+  Search,
+  Tag,
+  Tile,
+  Loading,
+  SkeletonPlaceholder,
   SkeletonText,
-  SkeletonPlaceholder
 } from "@carbon/react";
-import { Filter, Download } from "@carbon/icons-react";
+import { Download, Filter } from "@carbon/icons-react";
 import {
-  LineChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
   Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
 } from "recharts";
 import type { RawRow } from "@/types/data";
 
@@ -48,502 +45,643 @@ type Props = {
   errorMessage: string | null;
 };
 
-type ParsedRow = {
+type Iku002Row = {
   year: string;
   faculty: string;
-  studyProgram: string;
+  prodi: string;
   degree: string;
   totalGraduates: number;
   respondentTs: number;
-  work6mG: number;
-  work1yG: number;
-  work1yL: number;
-  study: number;
-  entrepreneur: number;
-  unemployed: number;
-  untracked: number;
-  // Computed fields
-  totalWorking: number;
-  totalSuccess: number; // Bekerja + Lanjut Studi + Wirausaha
-  ikuPercentage: number;
+  bekerja: number;
+  lanjutStudi: number;
+  wirausaha: number;
+  belumBekerja: number;
+  tidakTerlacak: number;
+  totalSuccess: number;
   responseRate: number;
+  ikuPercentage: number;
+  __raw: RawRow;
 };
 
-const CHART_TOOLTIP_STYLE = {
+type SortKey = "year" | "faculty" | "prodi" | "graduates" | "bekerja" | "lanjutStudi" | "wirausaha" | "iku";
+
+type ScopeCardProps = {
+  label: string;
+  value: string;
+  tone?: "brand" | "success" | "secondary";
+};
+
+const chartTooltipStyles = {
   backgroundColor: "#161616",
   border: "1px solid rgba(244, 244, 244, 0.32)",
   borderRadius: "4px",
   boxShadow: "0 8px 20px rgba(0, 0, 0, 0.35)",
-  opacity: 1
+  padding: "0.65rem 0.75rem",
 };
 
-const PIE_COLORS = ["#0f62fe", "#8a3ffc", "#198038", "#ee538b", "#6f6f6f"];
-const PIE_LABELS = ["Bekerja", "Lanjut Studi", "Wirausaha", "Belum Bekerja", "Tidak Terlacak"];
+const donutColors = ["#0f62fe", "#8a3ffc", "#198038", "#ee538b", "#6f6f6f"];
 
-function Iku002ChartTooltip({
+function normalizeText(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function findColumn(columns: string[], patterns: RegExp[], fallback = "") {
+  for (const pattern of patterns) {
+    const found = columns.find((column) => pattern.test(normalizeText(column)));
+    if (found) return found;
+  }
+  return fallback;
+}
+
+function toNumber(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/,/g, ".").replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function toStringValue(value: unknown) {
+  return value == null ? "" : String(value).trim();
+}
+
+function uniqueSorted(values: string[]) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, "id"));
+}
+
+function safePercent(numerator: number, denominator: number) {
+  if (!denominator) return 0;
+  return (numerator / denominator) * 100;
+}
+
+function formatPercent(value: number) {
+  return `${value.toFixed(2)}%`;
+}
+
+function formatNumber(value: number) {
+  return value.toLocaleString("id-ID");
+}
+
+function colorForPercent(value: number) {
+  if (value >= 85) return { bg: "rgba(25, 128, 56, 0.22)", fg: "var(--cds-text-primary)" };
+  if (value >= 70) return { bg: "rgba(15, 98, 254, 0.22)", fg: "var(--cds-text-primary)" };
+  if (value >= 50) return { bg: "rgba(15, 98, 254, 0.12)", fg: "var(--cds-text-primary)" };
+  if (value > 0) return { bg: "rgba(238, 83, 139, 0.16)", fg: "var(--cds-text-primary)" };
+  return { bg: "rgba(111, 111, 111, 0.16)", fg: "var(--cds-text-primary)" };
+}
+
+function formatChartValue(value: unknown) {
+  if (typeof value === "number") return value.toLocaleString("id-ID");
+  if (typeof value === "string") return value;
+  return "-";
+}
+
+function ChartTooltip({
   active,
   payload,
-  label
+  label,
 }: {
   active?: boolean;
-  payload?: Array<{ name?: string; value?: string | number; color?: string }>;
+  payload?: Array<{ name?: string; value?: unknown; color?: string }>;
   label?: string | number;
 }) {
   if (!active || !payload || payload.length === 0) return null;
 
   return (
-    <div style={CHART_TOOLTIP_STYLE}>
+    <div style={chartTooltipStyles}>
       {label !== undefined && (
-        <div style={{ color: "#ffffff", fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.25rem" }}>
+        <div style={{ color: "#fff", fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.35rem" }}>
           {String(label)}
         </div>
       )}
-      {payload.map((entry, idx) => (
-        <div key={`${entry.name || "item"}-${idx}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "#f4f4f4", fontSize: "0.75rem" }}>
-          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: entry.color || "#f4f4f4", flexShrink: 0 }} />
+      {payload.map((entry, index) => (
+        <div
+          key={`${entry.name ?? "value"}-${index}`}
+          style={{ display: "flex", alignItems: "center", gap: "0.45rem", color: "#f4f4f4", fontSize: "0.75rem" }}
+        >
+          <span style={{ width: "8px", height: "8px", borderRadius: "999px", background: entry.color || "#f4f4f4", flexShrink: 0 }} />
           <span>{entry.name || "Nilai"}:</span>
-          <strong style={{ color: "#ffffff" }}>
-            {typeof entry.value === "number" ? entry.value.toLocaleString("id-ID") : String(entry.value ?? "-")}
-          </strong>
+          <strong style={{ color: "#fff" }}>{formatChartValue(entry.value)}</strong>
         </div>
       ))}
     </div>
   );
 }
 
-const findColumn = (columns: string[], patterns: RegExp[], fallback = "") => {
-  for (const pattern of patterns) {
-    const found = columns.find((c) => pattern.test(c.toLowerCase()));
-    if (found) return found;
-  }
-  return fallback;
-};
-
-const toNum = (v: unknown) => {
-  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
-  if (typeof v === "string") {
-    const n = Number(v.replace(/,/g, ".").replace(/[^0-9.-]/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  }
-  return 0;
-};
-
-const toStr = (v: unknown) => (v == null ? "" : String(v).trim());
+function ScopeCard({ label, value, tone = "secondary" }: ScopeCardProps) {
+  const tagType = tone === "brand" ? "blue" : tone === "success" ? "green" : "cool-gray";
+  return (
+    <div style={{ minWidth: 0 }}>
+      <p style={{ margin: "0 0 0.25rem 0", fontSize: "0.6875rem", fontWeight: 600, textTransform: "uppercase", color: "var(--cds-text-secondary)", letterSpacing: "0.04em" }}>
+        {label}
+      </p>
+      <Tag type={tagType} size="sm" style={{ margin: 0, maxWidth: "100%" }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
+      </Tag>
+    </div>
+  );
+}
 
 export function Iku002Skeleton() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <Tile style={{ padding: "1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+      <Tile style={{ padding: "1rem", display: "flex", alignItems: "center", gap: "0.875rem" }}>
         <Loading withOverlay={false} small description="Memuat data IKU 002..." />
         <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-          <strong style={{ fontSize: "0.875rem", color: "var(--cds-text-primary)" }}>Memuat data IKU 002</strong>
+          <strong style={{ fontSize: "0.875rem", color: "var(--cds-text-primary)" }}>Memuat dashboard IKU 002</strong>
           <span style={{ fontSize: "0.75rem", color: "var(--cds-text-secondary)" }}>
-            Sedang mengurai spreadsheet dan menyiapkan visualisasi tracer study.
+            Menyiapkan agregasi alumni, tren universitas, dan analisis per fakultas.
           </span>
         </div>
       </Tile>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "1rem" }}>
-        {Array.from({ length: 4 }).map((_, idx) => (
-          <Tile key={idx}><SkeletonText heading width="70%" /><SkeletonText paragraph lineCount={2} width="90%" /></Tile>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Tile key={index} style={{ padding: "1rem" }}>
+            <SkeletonText heading width="60%" />
+            <SkeletonText paragraph lineCount={2} width="90%" />
+          </Tile>
         ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-        <Tile><SkeletonPlaceholder style={{ width: "100%", height: "280px" }} /></Tile>
-        <Tile><SkeletonPlaceholder style={{ width: "100%", height: "280px" }} /></Tile>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "1rem" }}>
+        <Tile style={{ minHeight: "320px" }}><SkeletonPlaceholder style={{ width: "100%", height: "280px" }} /></Tile>
+        <Tile style={{ minHeight: "320px" }}><SkeletonPlaceholder style={{ width: "100%", height: "280px" }} /></Tile>
       </div>
     </div>
   );
 }
 
 export function Iku002Dashboard({ rows, parseStatus, errorMessage }: Props) {
-  const { data: sheetRows, isLoading } = useSWR(["iku002-source", rows.length], async () => rows, {
-    revalidateOnFocus: false,
-    keepPreviousData: true
-  });
+  const parsedRows = useMemo<Iku002Row[]>(() => {
+    if (!rows.length) return [];
 
-  const parsed = useMemo(() => {
-    if (!sheetRows || sheetRows.length === 0) return [] as ParsedRow[];
+    const columns = Object.keys(rows[0]);
+    const yearCol = findColumn(columns, [/^tahun$/, /year/], "Tahun");
+    const facultyCol = findColumn(columns, [/^fakultas$/, /faculty/], "Fakultas");
+    const prodiCol = findColumn(columns, [/^prodi$/, /program.*studi/, /study.*program/], "Prodi");
+    const degreeCol = findColumn(columns, [/^jenjang$/, /degree/], "Jenjang");
+    const totalLulusanCol = findColumn(columns, [/total.*lulusan/, /jumlah.*lulusan/], "Total Lulusan");
+    const respondentCol = findColumn(columns, [/responden.*ts/, /tracer.*study/, /^responden$/], "Responden TS");
+    const bekerja6Col = findColumn(columns, [/bekerja.*<6.*bulan/, /bekerja.*6.*bulan/, /bekerja.*<6.*>/], "Bekerja <6 bulan >1.2 UMP");
+    const bekerja1TinggiCol = findColumn(columns, [/bekerja.*<1.*tahun.*>1\.2/, /bekerja.*1.*tahun.*>1\.2/, /bekerja.*<1.*tahun.*>.*ump/], "Bekerja <1 tahun >1.2 UMP");
+    const bekerja1RendahCol = findColumn(columns, [/bekerja.*<1.*tahun.*<1\.2/, /bekerja.*1.*tahun.*<1\.2/, /bekerja.*<1.*tahun.*<.*ump/], "Bekerja <1 tahun <1.2 UMP");
+    const lanjutCol = findColumn(columns, [/lanjut.*studi/, /^studi$/], "Lanjut Studi");
+    const wirausahaCol = findColumn(columns, [/wirausaha/, /entrepreneur/], "Wirausaha");
+    const belumBekerjaCol = findColumn(columns, [/belum.*bekerja/, /unemployed/], "Belum Bekerja");
+    const terlacakCol = findColumn(columns, [/tidak.*terlacak/, /untracked/], "Tidak Terlacak");
 
-    const cols = Object.keys(sheetRows[0]);
+    return rows
+      .map((row) => {
+        const year = toStringValue(row[yearCol]);
+        const faculty = toStringValue(row[facultyCol]);
+        const prodi = toStringValue(row[prodiCol]);
+        const degree = toStringValue(row[degreeCol]);
+        const totalGraduates = Math.max(0, toNumber(row[totalLulusanCol]));
+        const respondentTs = Math.max(0, toNumber(row[respondentCol]));
+        const bekerja = Math.max(0, toNumber(row[bekerja6Col])) + Math.max(0, toNumber(row[bekerja1TinggiCol])) + Math.max(0, toNumber(row[bekerja1RendahCol]));
+        const lanjutStudi = Math.max(0, toNumber(row[lanjutCol]));
+        const wirausaha = Math.max(0, toNumber(row[wirausahaCol]));
+        const belumBekerja = Math.max(0, toNumber(row[belumBekerjaCol]));
+        const tidakTerlacak = Math.max(0, toNumber(row[terlacakCol]));
+        const totalSuccess = bekerja + lanjutStudi + wirausaha;
+        const ikuPercentage = safePercent(totalSuccess, totalGraduates);
+        const responseRate = safePercent(respondentTs, totalGraduates);
 
-    const yearCol = findColumn(cols, [/^tahun$/, /year/]);
-    const facCol = findColumn(cols, [/fakultas/, /faculty/]);
-    const prodiCol = findColumn(cols, [/prodi/, /program.*studi/, /study.*program/]);
-    const degreeCol = findColumn(cols, [/jenjang/, /degree/]);
-    const totalGradCol = findColumn(cols, [/total.*lulusan/, /jumlah.*lulusan/, /graduates/]);
-    const respondentCol = findColumn(cols, [/responden.*ts/, /responden/, /tracer.*study/]);
-    const work6mGCol = findColumn(cols, [/bekerja.*<6.*>1\.2/, /bekerja.*6.*bulan.*>/, /<6.*bulan/]);
-    const work1yGCol = findColumn(cols, [/bekerja.*<1.*>1\.2/, /bekerja.*1.*tahun.*>/, /<1.*tahun.*>/]);
-    const work1yLCol = findColumn(cols, [/bekerja.*<1.*<1\.2/, /bekerja.*1.*tahun.*</, /<1.*tahun.*</]);
-    const studyCol = findColumn(cols, [/lanjut.*studi/, /studi.*lanjut/, /wira.*usaha.*tidak/, /lanjut/]);
-    const entrepreneurCol = findColumn(cols, [/wirausaha/, /entrepreneur/]);
-    const unemployedCol = findColumn(cols, [/belum.*bekerja/, /unemployed/]);
-    const untrackedCol = findColumn(cols, [/tidak.*terlacak/, /untracked/]);
-
-    if (!yearCol || !facCol || !prodiCol || !totalGradCol) return [];
-
-    return sheetRows.map((row) => {
-      const year = toStr(row[yearCol]);
-      const faculty = toStr(row[facCol]);
-      const studyProgram = toStr(row[prodiCol]);
-      const degree = toStr(row[degreeCol]);
-
-      const totalGraduates = Math.max(0, toNum(row[totalGradCol]));
-      const respondentTs = Math.max(0, toNum(row[respondentCol]));
-      const work6mG = Math.max(0, toNum(row[work6mGCol]));
-      const work1yG = Math.max(0, toNum(row[work1yGCol]));
-      const work1yL = Math.max(0, toNum(row[work1yLCol]));
-      const study = Math.max(0, toNum(row[studyCol]));
-      const entrepreneur = Math.max(0, toNum(row[entrepreneurCol]));
-      const unemployed = Math.max(0, toNum(row[unemployedCol]));
-      const untracked = Math.max(0, toNum(row[untrackedCol]));
-
-      const totalWorking = work6mG + work1yG + work1yL;
-      const totalSuccess = totalWorking + study + entrepreneur;
-      const ikuPercentage = totalGraduates > 0 ? (totalSuccess / totalGraduates) * 100 : 0;
-      const responseRate = totalGraduates > 0 ? (respondentTs / totalGraduates) * 100 : 0;
-
-      return {
-        year,
-        faculty,
-        studyProgram,
-        degree,
-        totalGraduates,
-        respondentTs,
-        work6mG,
-        work1yG,
-        work1yL,
-        study,
-        entrepreneur,
-        unemployed,
-        untracked,
-        totalWorking,
-        totalSuccess,
-        ikuPercentage,
-        responseRate
-      };
-    }).filter((r) => r.year && r.faculty && r.studyProgram);
-  }, [sheetRows]);
+        return {
+          year,
+          faculty,
+          prodi,
+          degree,
+          totalGraduates,
+          respondentTs,
+          bekerja,
+          lanjutStudi,
+          wirausaha,
+          belumBekerja,
+          tidakTerlacak,
+          totalSuccess,
+          responseRate,
+          ikuPercentage,
+          __raw: row,
+        };
+      })
+      .filter((row) => row.year && row.faculty && row.prodi);
+  }, [rows]);
 
   const [year, setYear] = useState("");
   const [faculty, setFaculty] = useState("");
   const [degree, setDegree] = useState("");
-  const [program, setProgram] = useState("");
+  const [prodi, setProdi] = useState("");
   const [search, setSearch] = useState("");
+  const [tableSortKey, setTableSortKey] = useState<SortKey>("iku");
+  const [tableSortDirection, setTableSortDirection] = useState<"asc" | "desc">("desc");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [showInsightToast, setShowInsightToast] = useState(true);
 
-  // Filter list extraction
-  const years = useMemo(() => [...new Set(parsed.map((r) => r.year))].sort(), [parsed]);
-  const faculties = useMemo(() => [...new Set(parsed.map((r) => r.faculty))].sort(), [parsed]);
-  const degrees = useMemo(() => [...new Set(parsed.map((r) => r.degree))].filter(Boolean).sort(), [parsed]);
-  const programs = useMemo(() => [...new Set(parsed.map((r) => r.studyProgram))].sort(), [parsed]);
-
-  // Apply filters
-  const filtered = useMemo(() => {
-    return parsed.filter((r) => {
-      if (year && r.year !== year) return false;
-      if (faculty && r.faculty !== faculty) return false;
-      if (degree && r.degree !== degree) return false;
-      if (program && r.studyProgram !== program) return false;
-      if (search && !r.studyProgram.toLowerCase().includes(search.toLowerCase())) return false;
+  const filteredForCharts = useMemo(() => {
+    return parsedRows.filter((row) => {
+      if (year && row.year !== year) return false;
+      if (faculty && row.faculty !== faculty) return false;
+      if (degree && row.degree !== degree) return false;
+      if (prodi && row.prodi !== prodi) return false;
+      if (
+        search &&
+        ![
+          row.year,
+          row.faculty,
+          row.prodi,
+          row.degree,
+          row.totalGraduates,
+          row.respondentTs,
+          row.bekerja,
+          row.lanjutStudi,
+          row.wirausaha,
+          row.belumBekerja,
+          row.tidakTerlacak,
+          row.ikuPercentage,
+        ].some((value) => String(value ?? "").toLowerCase().includes(search.toLowerCase()))
+      ) {
+        return false;
+      }
       return true;
     });
-  }, [parsed, year, faculty, degree, program, search]);
+  }, [parsedRows, year, faculty, degree, prodi, search]);
 
-  // Aggregate stats
+  const filteredForTable = useMemo(() => {
+    return filteredForCharts;
+  }, [filteredForCharts]);
+
+  const sortedTableRows = useMemo(() => {
+    const next = [...filteredForTable];
+    next.sort((left, right) => {
+      const compareString = (a: string, b: string) => a.localeCompare(b, "id", { numeric: true, sensitivity: "base" });
+      const compareNumber = (a: number, b: number) => a - b;
+
+      let diff = 0;
+      switch (tableSortKey) {
+        case "year":
+          diff = compareString(left.year, right.year);
+          break;
+        case "faculty":
+          diff = compareString(left.faculty, right.faculty);
+          break;
+        case "prodi":
+          diff = compareString(left.prodi, right.prodi);
+          break;
+        case "graduates":
+          diff = compareNumber(left.totalGraduates, right.totalGraduates);
+          break;
+        case "bekerja":
+          diff = compareNumber(left.bekerja, right.bekerja);
+          break;
+        case "lanjutStudi":
+          diff = compareNumber(left.lanjutStudi, right.lanjutStudi);
+          break;
+        case "wirausaha":
+          diff = compareNumber(left.wirausaha, right.wirausaha);
+          break;
+        case "iku":
+          diff = compareNumber(left.ikuPercentage, right.ikuPercentage);
+          break;
+      }
+
+      return tableSortDirection === "asc" ? diff : -diff;
+    });
+    return next;
+  }, [filteredForTable, tableSortDirection, tableSortKey]);
+
+  const yearOptions = useMemo(() => uniqueSorted(parsedRows.map((row) => row.year)), [parsedRows]);
+  const facultyOptions = useMemo(
+    () => uniqueSorted(parsedRows.filter((row) => !year || row.year === year).map((row) => row.faculty)),
+    [parsedRows, year]
+  );
+  const degreeOptions = useMemo(
+    () =>
+      uniqueSorted(
+        parsedRows
+          .filter((row) => (!year || row.year === year) && (!faculty || row.faculty === faculty))
+          .map((row) => row.degree)
+      ),
+    [parsedRows, year, faculty]
+  );
+  const prodiOptions = useMemo(
+    () =>
+      uniqueSorted(
+        parsedRows
+          .filter((row) => (!year || row.year === year) && (!faculty || row.faculty === faculty) && (!degree || row.degree === degree))
+          .map((row) => row.prodi)
+      ),
+    [parsedRows, year, faculty, degree]
+  );
+
   const summary = useMemo(() => {
-    const totalGraduates = filtered.reduce((a, b) => a + b.totalGraduates, 0);
-    const totalRespondent = filtered.reduce((a, b) => a + b.respondentTs, 0);
-    const totalWork6mG = filtered.reduce((a, b) => a + b.work6mG, 0);
-    const totalWork1yG = filtered.reduce((a, b) => a + b.work1yG, 0);
-    const totalWork1yL = filtered.reduce((a, b) => a + b.work1yL, 0);
-    const totalStudy = filtered.reduce((a, b) => a + b.study, 0);
-    const totalEntrepreneur = filtered.reduce((a, b) => a + b.entrepreneur, 0);
-    const totalUnemployed = filtered.reduce((a, b) => a + b.unemployed, 0);
-    const totalUntracked = filtered.reduce((a, b) => a + b.untracked, 0);
-
-    const totalWorking = totalWork6mG + totalWork1yG + totalWork1yL;
-    const totalSuccess = totalWorking + totalStudy + totalEntrepreneur;
-    const ikuPercentage = totalGraduates > 0 ? (totalSuccess / totalGraduates) * 100 : 0;
-    const responseRate = totalGraduates > 0 ? (totalRespondent / totalGraduates) * 100 : 0;
-
+    const totalGraduates = filteredForCharts.reduce((acc, row) => acc + row.totalGraduates, 0);
+    const totalRespondent = filteredForCharts.reduce((acc, row) => acc + row.respondentTs, 0);
+    const totalSuccess = filteredForCharts.reduce((acc, row) => acc + row.totalSuccess, 0);
+    const totalAlumniMemenuhi = totalSuccess;
     return {
       totalGraduates,
       totalRespondent,
-      totalWorking,
-      totalStudy,
-      totalEntrepreneur,
       totalSuccess,
-      totalUnemployed,
-      totalUntracked,
-      ikuPercentage,
-      responseRate,
-      totalFaculty: new Set(filtered.map((r) => r.faculty)).size,
-      totalProgram: new Set(filtered.map((r) => r.studyProgram)).size
+      totalAlumniMemenuhi,
+      ikuPercentage: safePercent(totalSuccess, totalGraduates),
+      responseRate: safePercent(totalRespondent, totalGraduates),
+      facultyCount: new Set(filteredForCharts.map((row) => row.faculty)).size,
+      prodiCount: new Set(filteredForCharts.map((row) => `${row.faculty}::${row.prodi}`)).size,
     };
-  }, [filtered]);
+  }, [filteredForCharts]);
 
-  // Trend analysis (multi-year 2024-2026)
   const trendData = useMemo(() => {
-    const map = new Map<string, ParsedRow[]>();
-    for (const r of filtered) {
-      const arr = map.get(r.year) ?? [];
-      arr.push(r);
-      map.set(r.year, arr);
-    }
-    return [...map.entries()]
-      .map(([yr, items]) => {
-        const grads = items.reduce((a, b) => a + b.totalGraduates, 0);
-        const succ = items.reduce((a, b) => a + b.totalSuccess, 0);
-        const val = grads > 0 ? (succ / grads) * 100 : 0;
-        return { year: yr, iku: Number(val.toFixed(2)) };
-      })
-      .sort((a, b) => a.year.localeCompare(b.year));
-  }, [filtered]);
+    const map = new Map<string, { graduates: number; success: number }>();
+    filteredForCharts.forEach((row) => {
+      const current = map.get(row.year) ?? { graduates: 0, success: 0 };
+      current.graduates += row.totalGraduates;
+      current.success += row.totalSuccess;
+      map.set(row.year, current);
+    });
 
-  // Faculty comparison (Horizontal Bar Chart)
-  const facultyData = useMemo(() => {
-    const map = new Map<string, ParsedRow[]>();
-    for (const r of filtered) {
-      const arr = map.get(r.faculty) ?? [];
-      arr.push(r);
-      map.set(r.faculty, arr);
-    }
     return [...map.entries()]
-      .map(([fac, items]) => {
-        const grads = items.reduce((a, b) => a + b.totalGraduates, 0);
-        const succ = items.reduce((a, b) => a + b.totalSuccess, 0);
-        const val = grads > 0 ? (succ / grads) * 100 : 0;
-        return { faculty: fac, iku: Number(val.toFixed(2)) };
-      })
+      .map(([yearLabel, value]) => ({
+        year: yearLabel,
+        iku: Number(safePercent(value.success, value.graduates).toFixed(2)),
+        graduates: value.graduates,
+      }))
+      .sort((a, b) => a.year.localeCompare(b.year, "id", { numeric: true }));
+  }, [filteredForCharts]);
+
+  const facultyComparison = useMemo(() => {
+    const map = new Map<string, { graduates: number; success: number }>();
+    filteredForCharts.forEach((row) => {
+      const current = map.get(row.faculty) ?? { graduates: 0, success: 0 };
+      current.graduates += row.totalGraduates;
+      current.success += row.totalSuccess;
+      map.set(row.faculty, current);
+    });
+
+    return [...map.entries()]
+      .map(([facultyLabel, value]) => ({
+        faculty: facultyLabel,
+        iku: Number(safePercent(value.success, value.graduates).toFixed(2)),
+        graduates: value.graduates,
+      }))
       .sort((a, b) => b.iku - a.iku);
-  }, [filtered]);
+  }, [filteredForCharts]);
 
-  // Ranking Program Studi (Top 10 & Bottom 10)
-  const prodiPerformance = useMemo(() => {
-    const map = new Map<string, { prodi: string; faculty: string; grads: number; succ: number }>();
-    for (const r of filtered) {
-      const key = `${r.faculty}::${r.studyProgram}`;
-      const cur = map.get(key) ?? { prodi: r.studyProgram, faculty: r.faculty, grads: 0, succ: 0 };
-      cur.grads += r.totalGraduates;
-      cur.succ += r.totalSuccess;
-      map.set(key, cur);
-    }
+  const prodiRanking = useMemo(() => {
+    const map = new Map<string, { faculty: string; prodi: string; graduates: number; success: number }>();
+    filteredForCharts.forEach((row) => {
+      const key = `${row.faculty}::${row.prodi}`;
+      const current = map.get(key) ?? { faculty: row.faculty, prodi: row.prodi, graduates: 0, success: 0 };
+      current.graduates += row.totalGraduates;
+      current.success += row.totalSuccess;
+      map.set(key, current);
+    });
+
     return [...map.values()]
-      .map((p) => {
-        const val = p.grads > 0 ? (p.succ / p.grads) * 100 : 0;
-        return { studyProgram: p.prodi, faculty: p.faculty, iku: Number(val.toFixed(2)), graduates: p.grads };
-      })
-      .sort((a, b) => b.iku - a.iku);
-  }, [filtered]);
+      .map((item) => ({
+        faculty: item.faculty,
+        prodi: item.prodi,
+        label: item.prodi,
+        graduates: item.graduates,
+        iku: Number(safePercent(item.success, item.graduates).toFixed(2)),
+      }))
+      .sort((a, b) => b.iku - a.iku)
+      .slice(0, 10);
+  }, [filteredForCharts]);
 
-  const top10 = useMemo(() => prodiPerformance.slice(0, 10), [prodiPerformance]);
-  const bottom10 = useMemo(() => [...prodiPerformance].slice(-10).reverse(), [prodiPerformance]);
-
-  // Donut chart distribution (Outcome alumni)
   const outcomeDistribution = useMemo(() => {
-    const totalWorking = filtered.reduce((a, b) => a + b.totalWorking, 0);
-    const totalStudy = filtered.reduce((a, b) => a + b.study, 0);
-    const totalEntrepreneur = filtered.reduce((a, b) => a + b.entrepreneur, 0);
-    const totalUnemployed = filtered.reduce((a, b) => a + b.unemployed, 0);
-    const totalUntracked = filtered.reduce((a, b) => a + b.untracked, 0);
+    const totals = {
+      bekerja: filteredForCharts.reduce((acc, row) => acc + row.bekerja, 0),
+      lanjutStudi: filteredForCharts.reduce((acc, row) => acc + row.lanjutStudi, 0),
+      wirausaha: filteredForCharts.reduce((acc, row) => acc + row.wirausaha, 0),
+      belumBekerja: filteredForCharts.reduce((acc, row) => acc + row.belumBekerja, 0),
+      tidakTerlacak: filteredForCharts.reduce((acc, row) => acc + row.tidakTerlacak, 0),
+    };
 
     return [
-      { name: "Bekerja", value: totalWorking },
-      { name: "Lanjut Studi", value: totalStudy },
-      { name: "Wirausaha", value: totalEntrepreneur },
-      { name: "Belum Bekerja", value: totalUnemployed },
-      { name: "Tidak Terlacak", value: totalUntracked }
+      { name: "Bekerja", value: totals.bekerja },
+      { name: "Lanjut Studi", value: totals.lanjutStudi },
+      { name: "Wirausaha", value: totals.wirausaha },
+      { name: "Belum Bekerja", value: totals.belumBekerja },
+      { name: "Tidak Terlacak", value: totals.tidakTerlacak },
     ].filter((item) => item.value > 0);
-  }, [filtered]);
+  }, [filteredForCharts]);
 
-  // Stacked bar chart: Composition per Faculty
   const facultyComposition = useMemo(() => {
-    const map = new Map<string, { faculty: string; working: number; study: number; entrepreneur: number }>();
-    for (const r of filtered) {
-      const cur = map.get(r.faculty) ?? { faculty: r.faculty, working: 0, study: 0, entrepreneur: 0 };
-      cur.working += r.totalWorking;
-      cur.study += r.study;
-      cur.entrepreneur += r.entrepreneur;
-      map.set(r.faculty, cur);
-    }
-    return [...map.values()];
-  }, [filtered]);
+    const map = new Map<string, { faculty: string; bekerja: number; lanjutStudi: number; wirausaha: number }>();
+    filteredForCharts.forEach((row) => {
+      const current = map.get(row.faculty) ?? { faculty: row.faculty, bekerja: 0, lanjutStudi: 0, wirausaha: 0 };
+      current.bekerja += row.bekerja;
+      current.lanjutStudi += row.lanjutStudi;
+      current.wirausaha += row.wirausaha;
+      map.set(row.faculty, current);
+    });
+    return [...map.values()].sort((a, b) => a.faculty.localeCompare(b.faculty, "id"));
+  }, [filteredForCharts]);
 
-  // Heatmap Fakultas vs Tahun Matrix
-  const heatmapMatrix = useMemo(() => {
-    const yearHeaders = [...new Set(filtered.map((r) => r.year))].sort();
-    const facultyList = [...new Set(filtered.map((r) => r.faculty))].sort();
+  const heatmap = useMemo(() => {
+    const years = uniqueSorted(filteredForCharts.map((row) => row.year));
+    const faculties = uniqueSorted(filteredForCharts.map((row) => row.faculty));
 
-    const dataRows = facultyList.map((fac) => {
-      const cells = yearHeaders.map((yr) => {
-        const matching = filtered.filter((r) => r.faculty === fac && r.year === yr);
-        const grads = matching.reduce((a, b) => a + b.totalGraduates, 0);
-        const succ = matching.reduce((a, b) => a + b.totalSuccess, 0);
-        const pct = grads > 0 ? (succ / grads) * 100 : 0;
-        return { year: yr, iku: pct, grads };
+    const matrix = faculties.map((facultyLabel) => {
+      const cells = years.map((yearLabel) => {
+        const matching = filteredForCharts.filter((row) => row.faculty === facultyLabel && row.year === yearLabel);
+        const graduates = matching.reduce((acc, row) => acc + row.totalGraduates, 0);
+        const success = matching.reduce((acc, row) => acc + row.totalSuccess, 0);
+        const iku = safePercent(success, graduates);
+        return { year: yearLabel, iku, graduates };
       });
-      return { faculty: fac, cells };
+
+      return { faculty: facultyLabel, cells };
     });
 
-    return { headers: yearHeaders, rows: dataRows };
-  }, [filtered]);
+    return { years, matrix };
+  }, [filteredForCharts]);
 
-  // Automatic insight narrative
   const insight = useMemo(() => {
-    if (trendData.length === 0 || facultyData.length === 0 || prodiPerformance.length === 0) {
-      return "Belum ada data tracer study yang mencukupi untuk memformulasikan insight otomatis.";
+    if (!filteredForCharts.length) {
+      return "Belum ada data yang cocok dengan filter aktif.";
     }
 
-    const lastTrend = trendData[trendData.length - 1];
-    const prevTrend = trendData.length > 1 ? trendData[trendData.length - 2] : null;
-    const diff = prevTrend ? lastTrend.iku - prevTrend.iku : 0;
+    const facultyMap = new Map<string, { graduates: number; success: number }>();
+    const prodiMap = new Map<string, { faculty: string; prodi: string; graduates: number; success: number }>();
+    const yearMap = new Map<string, { graduates: number; success: number }>();
 
-    const bestFaculty = facultyData[0];
-    const bestProdi = prodiPerformance[0];
+    filteredForCharts.forEach((row) => {
+      const facultyCurrent = facultyMap.get(row.faculty) ?? { graduates: 0, success: 0 };
+      facultyCurrent.graduates += row.totalGraduates;
+      facultyCurrent.success += row.totalSuccess;
+      facultyMap.set(row.faculty, facultyCurrent);
 
-    // Compute contribution factor
-    // Total success contributions
-    const contributionMap = new Map<string, number>();
-    for (const r of filtered) {
-      const cur = contributionMap.get(r.faculty) ?? 0;
-      contributionMap.set(r.faculty, cur + r.totalSuccess);
-    }
-    const sortedContributors = [...contributionMap.entries()].sort((a, b) => b[1] - a[1]);
-    const topContributor = sortedContributors[0]
-      ? `${sortedContributors[0][0]} dengan kontribusi ${sortedContributors[0][1]} alumni`
-      : "-";
+      const prodiKey = `${row.faculty}::${row.prodi}`;
+      const prodiCurrent = prodiMap.get(prodiKey) ?? { faculty: row.faculty, prodi: row.prodi, graduates: 0, success: 0 };
+      prodiCurrent.graduates += row.totalGraduates;
+      prodiCurrent.success += row.totalSuccess;
+      prodiMap.set(prodiKey, prodiCurrent);
 
-    const trendText = prevTrend
-      ? `tren capaian ${diff >= 0 ? "meningkat" : "menurun"} sebesar ${Math.abs(diff).toFixed(2)}% dari tahun sebelumnya`
-      : "tren performa awal tahun tercatat";
-
-    return `Capaian IKU 002 Universitas saat ini berada pada angka ${summary.ikuPercentage.toFixed(2)}%. Berdasarkan analisis multi-tahun, terdapat ${trendText}. Fakultas ${bestFaculty.faculty} merupakan fakultas dengan persentase capaian tertinggi (${bestFaculty.iku.toFixed(2)}%), sedangkan Program Studi ${bestProdi.studyProgram} mencatatkan capaian individu tertinggi (${bestProdi.iku.toFixed(2)}%). Kontributor terbesar yang menyumbang angka keberhasilan alumni terbanyak adalah Fakultas ${topContributor}.`;
-  }, [trendData, facultyData, prodiPerformance, summary, filtered]);
-
-  // Detailed table rows structure
-  const tableRows = useMemo(() => {
-    return prodiPerformance.map((p, idx) => {
-      // Find matches in filtered to count detail categories
-      const match = filtered.filter((r) => r.studyProgram === p.studyProgram && r.faculty === p.faculty);
-      const totalWorking = match.reduce((a, b) => a + b.totalWorking, 0);
-      const study = match.reduce((a, b) => a + b.study, 0);
-      const entrepreneur = match.reduce((a, b) => a + b.entrepreneur, 0);
-
-      return {
-        id: `prodi-iku002-${idx}`,
-        studyProgram: p.studyProgram,
-        faculty: p.faculty,
-        graduates: String(p.graduates),
-        working: String(totalWorking),
-        study: String(study),
-        entrepreneur: String(entrepreneur),
-        iku: `${p.iku.toFixed(2)}%`
-      };
+      const yearCurrent = yearMap.get(row.year) ?? { graduates: 0, success: 0 };
+      yearCurrent.graduates += row.totalGraduates;
+      yearCurrent.success += row.totalSuccess;
+      yearMap.set(row.year, yearCurrent);
     });
-  }, [prodiPerformance, filtered]);
 
-  // CSV Export utility
-  const handleExportCsv = () => {
-    if (filtered.length === 0) return;
+    const bestFaculty = [...facultyMap.entries()]
+      .map(([facultyLabel, value]) => ({
+        faculty: facultyLabel,
+        iku: safePercent(value.success, value.graduates),
+        success: value.success,
+      }))
+      .sort((a, b) => b.iku - a.iku)[0];
+
+    const bestProdi = [...prodiMap.values()]
+      .map((value) => ({
+        faculty: value.faculty,
+        prodi: value.prodi,
+        iku: safePercent(value.success, value.graduates),
+        success: value.success,
+      }))
+      .sort((a, b) => b.iku - a.iku)[0];
+
+    const years = [...yearMap.entries()]
+      .map(([yearLabel, value]) => ({
+        year: yearLabel,
+        iku: safePercent(value.success, value.graduates),
+      }))
+      .sort((a, b) => a.year.localeCompare(b.year, "id", { numeric: true }));
+
+    const firstYear = years[0];
+    const lastYear = years[years.length - 1];
+    const trendText =
+      years.length > 1
+        ? `tren IKU bergerak ${lastYear.iku >= firstYear.iku ? "naik" : "turun"} dari ${formatPercent(firstYear.iku)} ke ${formatPercent(lastYear.iku)}`
+        : `capaian berada di ${formatPercent(summary.ikuPercentage)}`;
+
+    const contributor = [...facultyMap.entries()]
+      .map(([facultyLabel, value]) => ({ faculty: facultyLabel, success: value.success }))
+      .sort((a, b) => b.success - a.success)[0];
+
+    return `Capaian universitas pada filter aktif berada di ${formatPercent(summary.ikuPercentage)}. Fakultas terbaik adalah ${bestFaculty.faculty} (${formatPercent(bestFaculty.iku)}), prodi terbaik adalah ${bestProdi.prodi} di ${bestProdi.faculty} (${formatPercent(bestProdi.iku)}), dan ${trendText}. Kontributor terbesar terhadap alumni yang memenuhi IKU adalah ${contributor.faculty} dengan ${formatNumber(contributor.success)} alumni.`;
+  }, [filteredForCharts, summary.ikuPercentage]);
+
+  useEffect(() => {
+    setShowInsightToast(true);
+  }, [year, faculty, degree, prodi]);
+
+  const resetAllFilters = () => {
+    setYear("");
+    setFaculty("");
+    setDegree("");
+    setProdi("");
+    setSearch("");
+    setTableSortKey("iku");
+    setTableSortDirection("desc");
+    setShowFilterDropdown(false);
+  };
+
+  const setSort = (key: SortKey) => {
+    if (tableSortKey === key) {
+      setTableSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setTableSortKey(key);
+    setTableSortDirection(key === "iku" ? "desc" : "asc");
+  };
+
+  const downloadCsv = () => {
+    if (!sortedTableRows.length) return;
+
     const columns = [
       "Tahun",
       "Fakultas",
-      "Program Studi",
+      "Prodi",
       "Jenjang",
       "Total Lulusan",
       "Responden TS",
-      "Bekerja (<6m >1.2 UMP)",
-      "Bekerja (<1y >1.2 UMP)",
-      "Bekerja (<1y <1.2 UMP)",
+      "Bekerja",
       "Lanjut Studi",
       "Wirausaha",
       "Belum Bekerja",
       "Tidak Terlacak",
-      "Persentase IKU (%)"
+      "Persentase IKU",
+      "Response Rate",
     ];
 
-    const escapeCell = (v: unknown) => {
-      const text = String(v ?? "");
-      if (/[",\n]/.test(text)) {
-        return `"${text.replace(/"/g, '""')}"`;
-      }
+    const escapeCell = (value: unknown) => {
+      const text = String(value ?? "");
+      if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
       return text;
     };
 
-    const csvContent = [
-      columns.join(","),
-      ...filtered.map((r) =>
-        [
-          r.year,
-          r.faculty,
-          r.studyProgram,
-          r.degree,
-          r.totalGraduates,
-          r.respondentTs,
-          r.work6mG,
-          r.work1yG,
-          r.work1yL,
-          r.study,
-          r.entrepreneur,
-          r.unemployed,
-          r.untracked,
-          r.ikuPercentage.toFixed(2)
-        ]
-          .map(escapeCell)
-          .join(",")
-      )
-    ].join("\n");
+    const rowsCsv = sortedTableRows.map((row) =>
+      [
+        row.year,
+        row.faculty,
+        row.prodi,
+        row.degree,
+        row.totalGraduates,
+        row.respondentTs,
+        row.bekerja,
+        row.lanjutStudi,
+        row.wirausaha,
+        row.belumBekerja,
+        row.tidakTerlacak,
+        row.ikuPercentage.toFixed(2),
+        row.responseRate.toFixed(2),
+      ]
+        .map(escapeCell)
+        .join(",")
+    );
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([[columns.join(","), ...rowsCsv].join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `TracerStudy_IKU002_Export_${new Date().toISOString().split("T")[0]}.csv`);
+    link.href = url;
+    link.download = `IKU002_Detail_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
-  // Excel Export utility using dynamic xlsx
-  const handleExportExcel = async () => {
-    if (filtered.length === 0) return;
+  const downloadExcel = async () => {
+    if (!sortedTableRows.length) return;
     try {
       const XLSX = await import("xlsx");
-      const exportRows = filtered.map((r) => ({
-        "Tahun": r.year,
-        "Fakultas": r.faculty,
-        "Program Studi": r.studyProgram,
-        "Jenjang": r.degree,
-        "Total Lulusan": r.totalGraduates,
-        "Responden TS": r.respondentTs,
-        "Bekerja (<6bln >1.2 UMP)": r.work6mG,
-        "Bekerja (<1thn >1.2 UMP)": r.work1yG,
-        "Bekerja (<1thn <1.2 UMP)": r.work1yL,
-        "Lanjut Studi": r.study,
-        "Wirausaha": r.entrepreneur,
-        "Belum Bekerja": r.unemployed,
-        "Tidak Terlacak": r.untracked,
-        "Capaian IKU 002 (%)": Number(r.ikuPercentage.toFixed(2))
+      const exportRows = sortedTableRows.map((row) => ({
+        Tahun: row.year,
+        Fakultas: row.faculty,
+        Prodi: row.prodi,
+        Jenjang: row.degree,
+        "Total Lulusan": row.totalGraduates,
+        "Responden TS": row.respondentTs,
+        Bekerja: row.bekerja,
+        "Lanjut Studi": row.lanjutStudi,
+        Wirausaha: row.wirausaha,
+        "Belum Bekerja": row.belumBekerja,
+        "Tidak Terlacak": row.tidakTerlacak,
+        "Persentase IKU": Number(row.ikuPercentage.toFixed(2)),
+        "Response Rate": Number(row.responseRate.toFixed(2)),
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(exportRows);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "IKU 002 Detail");
-      XLSX.writeFile(workbook, `TracerStudy_IKU002_Export_${new Date().toISOString().split("T")[0]}.xlsx`);
-    } catch (err) {
-      console.error("Gagal mengekspor data ke Excel:", err);
+      XLSX.writeFile(workbook, `IKU002_Detail_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (error) {
+      console.error("Gagal mengekspor Excel:", error);
     }
   };
 
-  if (parseStatus === "loading" || isLoading) return <Iku002Skeleton />;
+  const buildTableRowKey = (row: Iku002Row, index: number) =>
+    `${row.year}-${row.faculty}-${row.prodi}-${index}`;
+
+  if (parseStatus === "loading") return <Iku002Skeleton />;
 
   if (parseStatus === "error") {
     return (
       <InlineNotification
         kind="error"
-        title="Gagal Mengakses Sheet"
+        title="Gagal Memuat Data"
         subtitle={errorMessage || "Sumber data tidak dapat diakses. Periksa koneksi Google Sheet yang aktif."}
         hideCloseButton
         lowContrast
@@ -551,13 +689,13 @@ export function Iku002Dashboard({ rows, parseStatus, errorMessage }: Props) {
     );
   }
 
-  if (!parsed.length) {
+  if (!parsedRows.length) {
     return (
       <Tile style={{ padding: "1.25rem" }}>
         <InlineNotification
           kind="warning"
           title="Data IKU 002 Tidak Tersedia"
-          subtitle="Dataset aktif belum memiliki kolom minimal: Tahun, Fakultas, Prodi, Total Lulusan, Bekerja, Lanjut Studi, Wirausaha."
+          subtitle="Dataset aktif belum memiliki kolom minimal: Tahun, Fakultas, Prodi, Jenjang, Total Lulusan, Responden TS, Bekerja, Lanjut Studi, Wirausaha, Belum Bekerja, Tidak Terlacak."
           hideCloseButton
           lowContrast
         />
@@ -566,195 +704,193 @@ export function Iku002Dashboard({ rows, parseStatus, errorMessage }: Props) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%" }}>
-      {/* Sticky Filter Toolbar */}
-      <Tile style={{ padding: "0.5rem", position: "sticky", top: "0.5rem", zIndex: 40 }}>
-        <div style={{ background: "var(--cds-layer-01)" }}>
-          <div className="dashboard-toolbars" style={{ position: "relative" }}>
-            <Search
-              id="iku002-search"
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <Tile style={{ padding: "1rem", position: "sticky", top: "0.5rem", zIndex: 20 }}>
+        <div className="dashboard-toolbars" style={{ position: "relative" }}>
+          <Search
+            id="iku002-search"
+            size="sm"
+            labelText="Search Prodi"
+            placeholder="Search Prodi, Fakultas, atau Tahun"
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          <div className="iku001-filter-dropdown" style={{ position: "relative" }}>
+            <Button
               size="sm"
-              labelText="Cari Program Studi"
-              placeholder="Cari Program Studi"
-              value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
-            />
-            <div className="iku001-filter-dropdown" style={{ position: "relative" }}>
-              <Button
-                size="sm"
-                kind="tertiary"
-                renderIcon={Filter}
-                onClick={() => setShowFilterDropdown((prev) => !prev)}
-              >
-                Filter
+              kind="tertiary"
+              renderIcon={Filter}
+              onClick={() => setShowFilterDropdown((prev) => !prev)}
+            >
+              Filter
+            </Button>
+          </div>
+          {showFilterDropdown && (
+            <div className="iku001-filter-panel iku001-filter-panel--overlay">
+              <div className="iku001-filter-card">
+                <Dropdown
+                  id="iku002-year-filter"
+                  size="sm"
+                  titleText="Tahun"
+                  label="Pilih tahun"
+                  items={["Semua", ...yearOptions]}
+                  selectedItem={year || "Semua"}
+                  onChange={({ selectedItem }) => setYear(selectedItem === "Semua" ? "" : String(selectedItem || ""))}
+                />
+              </div>
+              <div className="iku001-filter-card">
+                <Dropdown
+                  id="iku002-faculty-filter"
+                  size="sm"
+                  titleText="Fakultas"
+                  label="Pilih fakultas"
+                  items={["Semua", ...facultyOptions]}
+                  selectedItem={faculty || "Semua"}
+                  onChange={({ selectedItem }) => {
+                    const nextFaculty = selectedItem === "Semua" ? "" : String(selectedItem || "");
+                    setFaculty(nextFaculty);
+                    setProdi("");
+                  }}
+                />
+              </div>
+              <div className="iku001-filter-card">
+                <Dropdown
+                  id="iku002-degree-filter"
+                  size="sm"
+                  titleText="Jenjang"
+                  label="Pilih jenjang"
+                  items={["Semua", ...degreeOptions]}
+                  selectedItem={degree || "Semua"}
+                  onChange={({ selectedItem }) => {
+                    const nextDegree = selectedItem === "Semua" ? "" : String(selectedItem || "");
+                    setDegree(nextDegree);
+                    setProdi("");
+                  }}
+                />
+              </div>
+              <div className="iku001-filter-card">
+                <Dropdown
+                  id="iku002-prodi-filter"
+                  size="sm"
+                  titleText="Program Studi"
+                  label="Pilih program studi"
+                  items={["Semua", ...prodiOptions]}
+                  selectedItem={prodi || "Semua"}
+                  onChange={({ selectedItem }) => setProdi(selectedItem === "Semua" ? "" : String(selectedItem || ""))}
+                />
+              </div>
+              <Button size="sm" kind="ghost" onClick={resetAllFilters}>
+                Reset Filter
               </Button>
             </div>
-            {showFilterDropdown && (
-              <div className="iku001-filter-panel iku001-filter-panel--overlay">
-                <div className="iku001-filter-card">
-                  <Dropdown
-                    id="iku002-year"
-                    size="sm"
-                    titleText="Tahun"
-                    label="Pilih tahun"
-                    items={["Semua", ...years]}
-                    selectedItem={year || "Semua"}
-                    onChange={({ selectedItem }) => setYear(selectedItem === "Semua" ? "" : String(selectedItem || ""))}
-                  />
-                </div>
-                <div className="iku001-filter-card">
-                  <Dropdown
-                    id="iku002-fac"
-                    size="sm"
-                    titleText="Fakultas"
-                    label="Pilih fakultas"
-                    items={["Semua", ...faculties]}
-                    selectedItem={faculty || "Semua"}
-                    onChange={({ selectedItem }) => setFaculty(selectedItem === "Semua" ? "" : String(selectedItem || ""))}
-                  />
-                </div>
-                <div className="iku001-filter-card">
-                  <Dropdown
-                    id="iku002-degree"
-                    size="sm"
-                    titleText="Jenjang"
-                    label="Pilih jenjang"
-                    items={["Semua", ...degrees]}
-                    selectedItem={degree || "Semua"}
-                    onChange={({ selectedItem }) => setDegree(selectedItem === "Semua" ? "" : String(selectedItem || ""))}
-                  />
-                </div>
-                <div className="iku001-filter-card">
-                  <Dropdown
-                    id="iku002-prodi"
-                    size="sm"
-                    titleText="Program Studi"
-                    label="Pilih program studi"
-                    items={["Semua", ...programs]}
-                    selectedItem={program || "Semua"}
-                    onChange={({ selectedItem }) => setProgram(selectedItem === "Semua" ? "" : String(selectedItem || ""))}
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  kind="ghost"
-                  onClick={() => {
-                    setYear("");
-                    setFaculty("");
-                    setDegree("");
-                    setProgram("");
-                  }}
-                >
-                  Reset Filter
-                </Button>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </Tile>
 
-      {/* KPI Cards section */}
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
-        <Tile>
-          <div className="iku-kpi-tile__label">Capaian IKU 002</div>
-          <div className="iku-kpi-tile__value" style={{ color: "#0f62fe" }}>
-            {summary.ikuPercentage.toFixed(2)}%
-          </div>
+        <Tile style={{ padding: "1rem" }}>
+          <ScopeCard label="Capaian IKU 002" value={formatPercent(summary.ikuPercentage)} tone="brand" />
         </Tile>
-        <Tile>
-          <div className="iku-kpi-tile__label">Total Lulusan</div>
-          <div className="iku-kpi-tile__value">
-            {summary.totalGraduates.toLocaleString("id-ID")}
-          </div>
+        <Tile style={{ padding: "1rem" }}>
+          <ScopeCard label="Total Lulusan" value={formatNumber(summary.totalGraduates)} />
         </Tile>
-        <Tile>
-          <div className="iku-kpi-tile__label">Alumni Memenuhi IKU</div>
-          <div className="iku-kpi-tile__value">
-            {summary.totalSuccess.toLocaleString("id-ID")}
-          </div>
+        <Tile style={{ padding: "1rem" }}>
+          <ScopeCard label="Total Alumni Memenuhi IKU" value={formatNumber(summary.totalAlumniMemenuhi)} tone="success" />
         </Tile>
-        <Tile>
-          <div className="iku-kpi-tile__label">Response Rate Tracer Study</div>
-          <div className="iku-kpi-tile__value">
-            {summary.responseRate.toFixed(2)}%
-          </div>
+        <Tile style={{ padding: "1rem" }}>
+          <ScopeCard label="Response Rate Tracer Study" value={formatPercent(summary.responseRate)} />
         </Tile>
       </section>
 
-      {/* Multi-Year Trend & Faculty Comparison */}
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "1rem" }}>
-        <Tile style={{ minHeight: "320px" }}>
-          <h4 style={{ margin: "0 0 0.75rem 0" }}>Tren Multi-Tahun Capaian IKU 002</h4>
+        <Tile style={{ minHeight: "340px", padding: "1rem" }}>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Trend Multi-Tahun</h4>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="year" />
               <YAxis domain={[0, 100]} />
-              <Tooltip content={<Iku002ChartTooltip />} />
-              <Line type="monotone" dataKey="iku" stroke="#0f62fe" strokeWidth={2.5} name="Persentase IKU (%)" />
+              <Tooltip content={<ChartTooltip />} />
+              <Line type="monotone" dataKey="iku" stroke="#0f62fe" strokeWidth={2.5} name="Persentase IKU" />
             </LineChart>
           </ResponsiveContainer>
         </Tile>
 
-        <Tile style={{ minHeight: "320px" }}>
-          <h4 style={{ margin: "0 0 0.75rem 0" }}>Perbandingan Capaian IKU per Fakultas</h4>
+        <Tile style={{ minHeight: "340px", padding: "1rem" }}>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Perbandingan Fakultas</h4>
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={facultyData} layout="vertical">
+            <BarChart data={facultyComparison} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" domain={[0, 100]} />
-              <YAxis dataKey="faculty" type="category" width={80} style={{ fontSize: "0.75rem" }} />
-              <Tooltip content={<Iku002ChartTooltip />} />
-              <Bar dataKey="iku" fill="#8a3ffc" radius={[0, 4, 4, 0]} name="Capaian IKU (%)" />
+              <YAxis dataKey="faculty" type="category" width={120} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar
+                dataKey="iku"
+                fill="#8a3ffc"
+                radius={[0, 4, 4, 0]}
+                name="Persentase IKU"
+                onClick={(payload: { payload?: { faculty?: string } }) => {
+                  const clicked = payload?.payload?.faculty;
+                  if (!clicked) return;
+                  setFaculty(clicked);
+                  setProdi("");
+                }}
+                style={{ cursor: "pointer" }}
+              />
             </BarChart>
           </ResponsiveContainer>
         </Tile>
       </section>
 
-      {/* Top 10 Prodi & Outcome Distribution */}
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "1rem" }}>
-        <Tile style={{ minHeight: "320px" }}>
-          <h4 style={{ margin: "0 0 0.75rem 0" }}>Top 10 Capaian Program Studi</h4>
+        <Tile style={{ minHeight: "340px", padding: "1rem" }}>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Ranking Program Studi Top 10</h4>
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={top10}>
+            <BarChart data={prodiRanking} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="studyProgram" tick={false} />
-              <YAxis domain={[0, 100]} />
-              <Tooltip content={<Iku002ChartTooltip />} />
-              <Bar dataKey="iku" fill="#198038" name="Capaian (%)" />
+              <XAxis type="number" domain={[0, 100]} />
+              <YAxis dataKey="label" type="category" width={180} interval={0} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar
+                dataKey="iku"
+                fill="#198038"
+                radius={[0, 4, 4, 0]}
+                name="Persentase IKU"
+                onClick={(payload: { payload?: { faculty?: string; prodi?: string } }) => {
+                  const clicked = payload?.payload;
+                  if (!clicked?.faculty || !clicked?.prodi) return;
+                  setFaculty(clicked.faculty);
+                  setProdi(clicked.prodi);
+                }}
+                style={{ cursor: "pointer" }}
+              />
             </BarChart>
           </ResponsiveContainer>
         </Tile>
 
-        <Tile style={{ minHeight: "320px", display: "flex", flexDirection: "column" }}>
+        <Tile style={{ minHeight: "340px", padding: "1rem", display: "flex", flexDirection: "column" }}>
           <h4 style={{ margin: "0 0 0.75rem 0" }}>Distribusi Outcome Alumni</h4>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1, gap: "1rem" }}>
-            <ResponsiveContainer width="50%" height={200}>
-              <PieChart>
-                <Pie
-                  data={outcomeDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {outcomeDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip content={<Iku002ChartTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "45%" }}>
+          <div style={{ display: "flex", gap: "1rem", flex: 1, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ minWidth: 240, flex: "1 1 240px" }}>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={outcomeDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={65} outerRadius={95} paddingAngle={3}>
+                    {outcomeDistribution.map((entry, index) => (
+                      <Cell key={entry.name} fill={donutColors[index % donutColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", minWidth: 220, flex: "1 1 220px" }}>
               {outcomeDistribution.map((entry, index) => {
-                const totalVal = summary.totalGraduates || 1;
-                const percentage = ((entry.value / totalVal) * 100).toFixed(1);
+                const pct = safePercent(entry.value, summary.totalGraduates);
                 return (
                   <div key={entry.name} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.75rem" }}>
-                    <span style={{ width: "10px", height: "10px", backgroundColor: PIE_COLORS[index % PIE_COLORS.length], flexShrink: 0 }} />
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{entry.name}</span>
-                    <strong style={{ fontVariantNumeric: "tabular-nums" }}>{percentage}%</strong>
+                    <span style={{ width: 10, height: 10, borderRadius: "999px", background: donutColors[index % donutColors.length], flexShrink: 0 }} />
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name}</span>
+                    <strong>{formatPercent(pct)}</strong>
                   </div>
                 );
               })}
@@ -763,68 +899,67 @@ export function Iku002Dashboard({ rows, parseStatus, errorMessage }: Props) {
         </Tile>
       </section>
 
-      {/* Composition & Heatmap section */}
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "1rem" }}>
-        <Tile style={{ minHeight: "320px" }}>
-          <h4 style={{ margin: "0 0 0.75rem 0" }}>Komposisi Keberhasilan Alumni per Fakultas</h4>
+        <Tile style={{ minHeight: "340px", padding: "1rem" }}>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Komposisi Outcome per Fakultas</h4>
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={facultyComposition} stackOffset="none">
+            <BarChart data={facultyComposition}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="faculty" style={{ fontSize: "0.75rem" }} />
+              <XAxis dataKey="faculty" />
               <YAxis />
-              <Tooltip content={<Iku002ChartTooltip />} />
-              <Legend verticalAlign="top" height={36} />
-              <Bar dataKey="working" stackId="outcome" fill="#0f62fe" name="Bekerja" />
-              <Bar dataKey="study" stackId="outcome" fill="#8a3ffc" name="Lanjut Studi" />
-              <Bar dataKey="entrepreneur" stackId="outcome" fill="#198038" name="Wirausaha" />
+              <Tooltip content={<ChartTooltip />} />
+              <Legend />
+              <Bar dataKey="bekerja" stackId="outcome" fill="#0f62fe" name="Bekerja" />
+              <Bar dataKey="lanjutStudi" stackId="outcome" fill="#8a3ffc" name="Lanjut Studi" />
+              <Bar dataKey="wirausaha" stackId="outcome" fill="#198038" name="Wirausaha" />
             </BarChart>
           </ResponsiveContainer>
         </Tile>
 
-        <Tile style={{ minHeight: "320px", display: "flex", flexDirection: "column" }}>
-          <h4 style={{ margin: "0 0 0.75rem 0" }}>Heatmap Capaian Fakultas vs Tahun</h4>
+        <Tile style={{ minHeight: "340px", padding: "1rem", display: "flex", flexDirection: "column" }}>
+          <h4 style={{ margin: "0 0 0.75rem 0" }}>Heatmap Fakultas vs Tahun</h4>
           <div style={{ flex: 1, overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem", textAlign: "left" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>
               <thead>
                 <tr style={{ background: "var(--cds-layer-02)", borderBottom: "1px solid var(--cds-border-subtle-01)" }}>
-                  <th style={{ padding: "0.5rem", fontWeight: 600 }}>Fakultas</th>
-                  {heatmapMatrix.headers.map((yr) => (
-                    <th key={yr} style={{ padding: "0.5rem", textAlign: "center", fontWeight: 600 }}>{yr}</th>
+                  <th style={{ padding: "0.6rem", textAlign: "left", fontWeight: 600 }}>Fakultas</th>
+                  {heatmap.years.map((yearLabel) => (
+                    <th key={yearLabel} style={{ padding: "0.6rem", textAlign: "center", fontWeight: 600 }}>
+                      {yearLabel}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {heatmapMatrix.rows.map((row, idx) => (
+                {heatmap.matrix.map((row) => (
                   <tr key={row.faculty} style={{ borderBottom: "1px solid var(--cds-border-subtle-00)" }}>
-                    <td style={{ padding: "0.5rem", fontWeight: 600 }}>{row.faculty}</td>
+                    <td style={{ padding: "0.6rem", fontWeight: 600 }}>{row.faculty}</td>
                     {row.cells.map((cell) => {
-                      // Determine background color based on percentage
-                      const val = cell.iku;
-                      let bg = "rgba(15, 98, 254, 0.05)";
-                      let textCol = "var(--cds-text-primary)";
-                      if (val > 80) {
-                        bg = "rgba(25, 128, 56, 0.2)"; // green tint
-                      } else if (val > 60) {
-                        bg = "rgba(15, 98, 254, 0.25)"; // blue medium tint
-                      } else if (val > 40) {
-                        bg = "rgba(15, 98, 254, 0.15)"; // blue lighter tint
-                      } else if (val > 0) {
-                        bg = "rgba(238, 83, 139, 0.15)"; // red tint
-                      }
-
+                      const tone = colorForPercent(cell.iku);
                       return (
-                        <td
-                          key={cell.year}
-                          style={{
-                            padding: "0.5rem",
-                            textAlign: "center",
-                            backgroundColor: bg,
-                            color: textCol,
-                            fontWeight: 600,
-                            fontVariantNumeric: "tabular-nums"
-                          }}
-                        >
-                          {cell.grads > 0 ? `${val.toFixed(1)}%` : "-"}
+                        <td key={`${row.faculty}-${cell.year}`} style={{ padding: "0.4rem" }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFaculty(row.faculty);
+                              setYear(cell.year);
+                              setProdi("");
+                            }}
+                            title={`${row.faculty} - ${cell.year} : ${formatPercent(cell.iku)}`}
+                            style={{
+                              width: "100%",
+                              border: "none",
+                              borderRadius: "4px",
+                              padding: "0.55rem 0.4rem",
+                              background: tone.bg,
+                              color: tone.fg,
+                              fontWeight: 600,
+                              fontVariantNumeric: "tabular-nums",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {cell.graduates > 0 ? formatPercent(cell.iku) : "-"}
+                          </button>
                         </td>
                       );
                     })}
@@ -836,96 +971,86 @@ export function Iku002Dashboard({ rows, parseStatus, errorMessage }: Props) {
         </Tile>
       </section>
 
-      {/* Rankings breakdown panels */}
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1rem" }}>
-        <Tile>
-          <h4 style={{ margin: "0 0 0.75rem 0" }}>Ranking Top 10 Prodi</h4>
-          {top10.map((r, i) => (
-            <div key={`${r.studyProgram}-${i}`} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8125rem", padding: "0.25rem 0", borderBottom: "1px solid var(--cds-border-subtle-00)" }}>
-              <span>{r.studyProgram}</span>
-              <strong>{r.iku.toFixed(2)}%</strong>
-            </div>
-          ))}
-        </Tile>
-        <Tile>
-          <h4 style={{ margin: "0 0 0.75rem 0" }}>Ranking Bottom 10 Prodi</h4>
-          {bottom10.map((r, i) => (
-            <div key={`${r.studyProgram}-${i}`} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8125rem", padding: "0.25rem 0", borderBottom: "1px solid var(--cds-border-subtle-00)" }}>
-              <span>{r.studyProgram}</span>
-              <strong>{r.iku.toFixed(2)}%</strong>
-            </div>
-          ))}
-        </Tile>
-      </section>
-
-      {/* Detail Data Table */}
-      <Tile>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-          <h4 style={{ margin: 0 }}>Data Rincian Program Studi IKU 002</h4>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <Button size="sm" kind="tertiary" renderIcon={Download} onClick={handleExportCsv}>
-              Ekspor CSV
+      <Tile style={{ padding: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+          <div>
+            <h4 style={{ margin: "0 0 0.25rem 0" }}>Tabel Detail</h4>
+            <p style={{ margin: 0, color: "var(--cds-text-secondary)", fontSize: "0.75rem" }}>
+              Drill-down detail row-level mengikuti filter aktif. Klik header untuk sort.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <Button size="sm" kind="tertiary" renderIcon={Download} onClick={downloadCsv}>
+              Export CSV
             </Button>
-            <Button size="sm" kind="primary" renderIcon={Download} onClick={handleExportExcel}>
-              Ekspor Excel
+            <Button size="sm" kind="primary" renderIcon={Download} onClick={downloadExcel}>
+              Export Excel
             </Button>
           </div>
         </div>
 
-        <DataTable
-          rows={tableRows}
-          headers={[
-            { key: "studyProgram", header: "Program Studi" },
-            { key: "faculty", header: "Fakultas" },
-            { key: "graduates", header: "Total Lulusan" },
-            { key: "working", header: "Bekerja" },
-            { key: "study", header: "Lanjut Studi" },
-            { key: "entrepreneur", header: "Wirausaha" },
-            { key: "iku", header: "Persentase IKU" }
-          ]}
-          isSortable
-          size="sm"
-        >
-          {({ rows, headers, getTableProps, getTableContainerProps, getToolbarProps, getHeaderProps, getRowProps }) => (
-            <TableContainer {...getTableContainerProps()}>
-              <TableToolbar {...getToolbarProps()}>
-                <TableToolbarContent>
-                  <TableToolbarSearch
-                    persistent
-                    placeholder="Cari Program Studi"
-                    onChange={(e: any) => setSearch(e.target.value)}
-                    value={search}
-                  />
-                </TableToolbarContent>
-              </TableToolbar>
-              <Table {...getTableProps()}>
-                <TableHead>
-                  <TableRow>
-                    {headers.map((header) => {
-                      const { key, ...rest } = getHeaderProps({ header });
-                      return <TableHeader key={String(key ?? header.key)} {...rest}>{header.header}</TableHeader>;
-                    })}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {rows.map((row) => {
-                    const { key, ...rest } = getRowProps({ row });
-                    return (
-                      <TableRow key={String(key ?? row.id)} {...rest}>
-                        {row.cells.map((cell) => (
-                          <TableCell key={cell.id}>{cell.value}</TableCell>
-                        ))}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </DataTable>
+        <TableContainer title="" description="">
+          <TableToolbar>
+            <TableToolbarContent>
+            </TableToolbarContent>
+          </TableToolbar>
+
+          <Table>
+            <TableHead>
+              <TableRow>
+                {[
+                  { key: "year", header: "Tahun" },
+                  { key: "faculty", header: "Fakultas" },
+                  { key: "prodi", header: "Prodi" },
+                  { key: "graduates", header: "Total Lulusan" },
+                  { key: "bekerja", header: "Bekerja" },
+                  { key: "lanjutStudi", header: "Lanjut Studi" },
+                  { key: "wirausaha", header: "Wirausaha" },
+                  { key: "iku", header: "Persentase IKU" },
+                ].map((column) => {
+                  const active = tableSortKey === (column.key as SortKey);
+                  const direction = active ? tableSortDirection : "desc";
+                  return (
+                    <TableHeader
+                      key={column.key}
+                      aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
+                      onClick={() => setSort(column.key as SortKey)}
+                      style={{ cursor: "pointer", userSelect: "none" }}
+                    >
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                        {column.header}
+                        {active && <span aria-hidden="true">{direction === "asc" ? "▲" : "▼"}</span>}
+                      </span>
+                    </TableHeader>
+                  );
+                })}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortedTableRows.map((row, index) => (
+                <TableRow key={buildTableRowKey(row, index)}>
+                  <TableCell>{row.year}</TableCell>
+                  <TableCell>{row.faculty}</TableCell>
+                  <TableCell>{row.prodi}</TableCell>
+                  <TableCell>{formatNumber(row.totalGraduates)}</TableCell>
+                  <TableCell>{formatNumber(row.bekerja)}</TableCell>
+                  <TableCell>{formatNumber(row.lanjutStudi)}</TableCell>
+                  <TableCell>{formatNumber(row.wirausaha)}</TableCell>
+                  <TableCell>{formatPercent(row.ikuPercentage)}</TableCell>
+                </TableRow>
+              ))}
+              {sortedTableRows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} style={{ textAlign: "center", color: "var(--cds-text-secondary)", padding: "2rem" }}>
+                    Tidak ada data yang cocok dengan filter atau pencarian.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Tile>
 
-      {/* Floating Automated Insight Toast */}
       {showInsightToast && (
         <div
           style={{
@@ -933,7 +1058,7 @@ export function Iku002Dashboard({ rows, parseStatus, errorMessage }: Props) {
             right: "1rem",
             bottom: "1rem",
             zIndex: 1200,
-            width: "min(420px, calc(100vw - 2rem))"
+            width: "min(440px, calc(100vw - 2rem))",
           }}
         >
           <InlineNotification
